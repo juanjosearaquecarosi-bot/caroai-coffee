@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+instance/
+.env
+.env.*
+caroai.db
+*.sqlite
+*.sqlite3
+Caroai Cafe control ventas (1).xlsx

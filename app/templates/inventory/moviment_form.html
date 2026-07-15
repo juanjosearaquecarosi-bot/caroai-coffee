@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Nuevo Movimiento - {{ insumo.nombre }} - Caroai Café{% endblock %}
+{% block content %}
+<h1 class="mb-4">Nuevo Movimiento de Inventario: {{ insumo.nombre }}</h1>
+<p class="lead">
+    Unidad de medida: {{ insumo.unidad_medida }} |
+    Stock actual: {{ insumo.stock_actual }} {{ insumo.unidad_medida }}
+</p>
+
+<form method="POST">
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="tipo" class="form-label">Tipo de Movimiento</label>
+            <select class="form-select" id="tipo" name="tipo" required>
+                <option value="entrada">Entrada</option>
+                <option value="salida">Salida</option>
+                <option value="merma">Merma</option>
+                <option value="ajuste">Ajuste</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="cantidad" class="form-label">Cantidad</label>
+            <input type="number" class="form-control" id="cantidad" name="cantidad" required min="1">
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label for="motivo" class="form-label">Motivo / Descripción</label>
+        <input type="text" class="form-control" id="motivo" name="motivo" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="fecha" class="form-label">Fecha y Hora</label>
+        <input type="datetime-local" class="form-control" id="fecha" name="fecha" value="{{ now.strftime('%Y-%m-%dT%H:%M') }}" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="costo_total" class="form-label">Costo Total (COP)</label>
+        <input type="number" class="form-control" id="costo_total" name="costo_total" min="0" readonly>
+        <div class="form-text">
+            Para movimientos de tipo "Entrada", el costo total se calculará automáticamente.
+            Para otros tipos, el costo suele ser 0 (se asume que el costo ya se contó en la entrada).
+        </div>
+    </div>
+
+    <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">Registrar Movimiento</button>
+        <a href="{{ url_for('inventory.movimientos', id=insumo.id) }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tipoSelect = document.getElementById('tipo');
+    const costoTotalInput = document.getElementById('costo_total');
+    const cantidadInput = document.getElementById('cantidad');
+    const {{ insumo.costo_unitario_cop }} renders as a number in the template
+
+    function updateCostoTotal() {
+        const tipo = tipoSelect.value;
+        const cantidad = parseFloat(cantidadInput.value) || 0;
+        const costoUnitario = {{ insumo.costo_unitario_cop|default(0) }};
+
+        if (tipo === 'entrada') {
+            costoTotalInput.value = cantidad * costoUnitario;
+        } else {
+            costoTotalInput.value = 0;
+        }
+    }
+
+    tipoSelect.addEventListener('change', updateCostoTotal);
+    cantidadInput.addEventListener('input', updateCostoTotal);
+
+    // Initial calculation
+    updateCostoTotal();
+});
+</script>
+{% endblock %}

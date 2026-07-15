@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Mesas - Caroai Café{% endblock %}
+{% block content %}
+<h1 class="mb-4">Estado de las Mesas</h1>
+<a href="#" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#mesaModal">Abrir Nueva Mesa</a>
+<table class="table table-striped table-hover">
+    <thead class="table-dark">
+        <tr>
+            <th>Número</th>
+            <th>Estado</th>
+            <th>Fecha Apertura</th>
+            <th>Fecha Cierre</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for mesa in mesas %}
+        <tr>
+            <td>{{ mesa.numero }}</td>
+            <td>
+                {% if mesa.estado == 'libre' %}<span class="badge bg-success">Libre</span>
+                {% elif mesa.estado == 'ocupada' %}<span class="badge bg-warning text-dark">Ocupada</span>
+                {% else %}<span class="badge bg-secondary">Cerrada</span>{% endif %}
+            </td>
+            <td>{{ mesa.fecha_apertura.strftime('%d/%m/%Y %H:%M') if mesa.fecha_apertura else '-' }}</td>
+            <td>{{ mesa.fecha_cierre.strftime('%d/%m/%Y %H:%M') if mesa.fecha_cierre else '-' }}</td>
+            <td>
+                {% if mesa.estado == 'libre' %}
+                <form action="{{ url_for('tables.open_mesa', mesa_id=mesa.id) }}" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-success">Abrir</button>
+                </form>
+                {% elif mesa.estado == 'ocupada' %}
+                <form action="{{ url_for('tables.close_mesa', mesa_id=mesa.id) }}" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Cerrar</button>
+                </form>
+                {% else %}
+                <form action="{{ url_for('tables.reset_mesa', mesa_id=mesa.id) }}" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Reiniciar</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Modal para abrir una nueva mesa (en este caso, solo seleccionamos una mesa libre y la abrimos) -->
+<div class="modal fade" id="mesaModal" tabindex="-1" aria-labelledby="mesaModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="mesaModalLabel">Abrir Mesa</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Seleccione la mesa que desea abrir:</p>
+                <form id="openMesaForm" action="" method="post">
+                    <div class="mb-3">
+                        <label for="mesaSelect" class="form-label">Mesa</label>
+                        <select class="form-select" id="mesaSelect" name="mesa_id" required>
+                            <option value="">-- Seleccione una mesa libre --</option>
+                            {% for mesa in mesas %}
+                            {% if mesa.estado == 'libre' %}
+                            <option value="{{ mesa.id }}">{{ mesa.numero }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="openMesaBtn">Abrir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('openMesaBtn').addEventListener('click', function() {
+    const mesaId = document.getElementById('mesaSelect').value;
+    if (mesaId) {
+        // Submit the form to the open_mesa route
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/tables/open/' + mesaId;
+        document.body.appendChild(form);
+        form.submit();
+    }
+});
+</script>
+{% endblock %}
