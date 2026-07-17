@@ -1,7 +1,8 @@
 import os
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, flash
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
+from werkzeug.middleware.proxy_fix import ProxyFix
 from .models import db
 from .database import init_app
 
@@ -12,6 +13,13 @@ csrf = CSRFProtect()
 
 def create_app():
     app = Flask(__name__)
+
+    # ProxyFix para que Flask genere URLs HTTPS correctas
+    # en entornos con proxy inverso (Render, Railway, etc.)
+    # x_for=1 confía en el primer X-Forwarded-For
+    # x_proto=1 confía en el primer X-Forwarded-Proto (http→https)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     db_url = os.environ.get('DATABASE_URL')
     if db_url and db_url.startswith("postgres://"):
