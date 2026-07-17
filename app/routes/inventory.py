@@ -60,8 +60,8 @@ def edit(id):
 @role_required('admin')
 def delete(id):
     insumo = Insumo.query.get_or_404(id)
-    if insumo.movimientos or insumo.recetas:
-        flash(f'No se puede eliminar el insumo "{insumo.nombre}" porque tiene movimientos o recetas asociadas.', 'error')
+    if insumo.movimientos:
+        flash(f'No se puede eliminar el insumo "{insumo.nombre}" porque tiene movimientos asociados.', 'error')
         return redirect(url_for('inventory.index'))
 
     db.session.delete(insumo)

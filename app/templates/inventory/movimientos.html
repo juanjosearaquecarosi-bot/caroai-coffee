@@ -5,13 +5,21 @@
 <div class="page-header">
     <div>
         <h1>{{ insumo.nombre }}</h1>
-        <p>Movimientos de inventario · Stock actual: <strong>{{ insumo.stock_actual }} {{ insumo.unidad_medida }}</strong></p>
+        <p>Movimientos de inventario &middot; Stock actual: <strong class="mono-number">{{ insumo.stock_actual }} {{ insumo.unidad_medida }}</strong></p>
     </div>
-    <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-primary">+ Nuevo movimiento</a>
+    <div class="page-header-actions">
+        <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo movimiento
+        </a>
+    </div>
 </div>
 
 <div class="mb-3">
-    <a href="{{ url_for('inventory.index') }}" class="btn btn-outline">← Volver al inventario</a>
+    <a href="{{ url_for('inventory.index') }}" class="btn btn-ghost">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Volver al inventario
+    </a>
 </div>
 
 {% if movimientos %}
@@ -29,28 +37,40 @@
         <tbody>
             {% for mov in movimientos %}
             <tr>
-                <td>{{ mov.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td class="text-small">{{ mov.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
                 <td>
                     {% if mov.tipo == 'entrada' %}
-                    <span class="badge badge-stock-ok">● Entrada</span>
+                    <span class="badge badge-stock-ok">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Entrada
+                    </span>
                     {% elif mov.tipo == 'salida' %}
-                    <span class="badge badge-stock-bajo">● Salida</span>
+                    <span class="badge badge-stock-bajo">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Salida
+                    </span>
                     {% elif mov.tipo == 'merma' %}
-                    <span class="badge badge-stock-agotado">● Merma</span>
+                    <span class="badge badge-stock-agotado">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Merma
+                    </span>
                     {% else %}
-                    <span class="badge badge-ajuste">● Ajuste</span>
+                    <span class="badge badge-ajuste">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Ajuste
+                    </span>
                     {% endif %}
                 </td>
                 <td>
                     {% if mov.tipo == 'entrada' or mov.tipo == 'ajuste' and mov.cantidad > 0 %}
-                    <span style="color: var(--color-success); font-weight: 600;">+{{ mov.cantidad }}</span>
+                    <span class="text-success mono-number" style="font-weight: 600;">+{{ mov.cantidad }}</span>
                     {% else %}
-                    <span style="color: var(--color-danger); font-weight: 600;">-{{ mov.cantidad }}</span>
+                    <span class="text-danger mono-number" style="font-weight: 600;">&minus;{{ mov.cantidad }}</span>
                     {% endif %}
-                    {{ insumo.unidad_medida }}
+                    <span class="text-muted text-small"> {{ insumo.unidad_medida }}</span>
                 </td>
-                <td>${{ "{:,}".format(mov.costo_total) }}</td>
-                <td>{{ mov.motivo or '—' }}</td>
+                <td class="mono-number">${{ "{:,}".format(mov.costo_total) }}</td>
+                <td class="text-small">{{ mov.motivo or '—' }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -59,9 +79,12 @@
 {% else %}
 <div class="card">
     <div class="card-body empty-state">
-        <span class="empty-icon">📊</span>
+        <span class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </span>
+        <h3>Sin movimientos</h3>
         <p>No hay movimientos registrados para {{ insumo.nombre }}.</p>
-        <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-primary mt-2">Registrar movimiento</a>
+        <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-primary mt-2">Registrar primer movimiento</a>
     </div>
 </div>
 {% endif %}

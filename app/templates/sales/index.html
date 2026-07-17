@@ -7,6 +7,12 @@
         <h1>Ventas</h1>
         <p>Historial de pedidos registrados</p>
     </div>
+    <div class="page-header-actions">
+        <a href="{{ url_for('tables.index') }}" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nueva venta
+        </a>
+    </div>
 </div>
 
 {% if pedidos %}
@@ -15,54 +21,56 @@
         <thead>
             <tr>
                 <th>#</th>
-                <th>Mesa</th>
+                <th>Ubicación</th>
                 <th>Fecha</th>
                 <th>Estado</th>
                 <th>Moneda</th>
-                <th>Recibido</th>
-                <th>Total COP</th>
-                <th></th>
+                <th>Total</th>
+                <th>Método</th>
+                <th class="cell-actions"></th>
             </tr>
         </thead>
         <tbody>
             {% for pedido in pedidos %}
             <tr>
-                <td><strong>{{ pedido.id }}</strong></td>
-                <td>{{ pedido.mesa.numero }}</td>
-                <td>{{ pedido.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td><strong class="mono-number">{{ pedido.id }}</strong></td>
+                <td>{{ pedido.ubicacion.nombre }}</td>
+                <td class="text-small">{{ pedido.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
                 <td>
                     {% if pedido.estado == 'abierto' %}
-                    <span class="badge badge-abierto">● Abierto</span>
+                    <span class="badge badge-abierto">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Abierto
+                    </span>
+                    {% elif pedido.estado == 'pagado' %}
+                    <span class="badge badge-pagado">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Pagado
+                    </span>
                     {% else %}
-                    <span class="badge badge-cerrado">● Cerrado</span>
+                    <span class="badge badge-anulado">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Anulado
+                    </span>
                     {% endif %}
                 </td>
-                <td>
-                    {% if pedido.moneda_recibida %}
-                    <span style="font-weight: 600;">{{ pedido.moneda_recibida }}</span>
-                    {% else %}
-                    <span class="text-muted">—</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if pedido.monto_recibido and pedido.monto_recibido > 0 %}
-                    <strong>${{ "{:,}".format(pedido.monto_recibido) }}</strong>
-                    {% else %}
-                    <span class="text-muted">—</span>
-                    {% endif %}
-                </td>
+                <td>{% if pedido.moneda_pago %}<strong>{{ pedido.moneda_pago }}</strong>{% else %}<span class="text-muted">—</span>{% endif %}</td>
                 <td>
                     {% set total = pedido.items|sum(attribute='subtotal_cop') %}
                     {% if total > 0 %}
-                    ${{ "{:,}".format(total) }}
+                    <strong class="mono-number">${{ "{:,}".format(total) }}</strong>
                     {% else %}
                     <span class="text-muted">—</span>
                     {% endif %}
                 </td>
-                <td>
+                <td class="capitalize">{% if pedido.metodo_pago %}{{ pedido.metodo_pago }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                <td class="cell-actions">
                     <a href="{{ url_for('sales.detail', pedido_id=pedido.id) }}" class="btn btn-sm btn-outline">Ver</a>
                     {% if pedido.estado == 'abierto' %}
-                    <a href="{{ url_for('sales.close_pedido_form', pedido_id=pedido.id) }}" class="btn btn-sm btn-danger">Cerrar</a>
+                    <a href="{{ url_for('sales.close_pedido_form', pedido_id=pedido.id) }}" class="btn btn-sm btn-primary">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Cobrar
+                    </a>
                     {% endif %}
                 </td>
             </tr>
@@ -73,9 +81,12 @@
 {% else %}
 <div class="card">
     <div class="card-body empty-state">
-        <span class="empty-icon">🧾</span>
-        <p>Aún no hay pedidos registrados. Abre una mesa y crea un pedido para comenzar.</p>
-        <a href="{{ url_for('tables.index') }}" class="btn btn-primary mt-2">Ir a Mesas</a>
+        <span class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </span>
+        <h3>Aún no hay ventas</h3>
+        <p>Abre una ubicación para registrar el primer pedido del día.</p>
+        <a href="{{ url_for('tables.index') }}" class="btn btn-primary mt-2">Ir a Ubicaciones</a>
     </div>
 </div>
 {% endif %}

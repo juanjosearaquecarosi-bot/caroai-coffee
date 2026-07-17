@@ -8,7 +8,12 @@
         <p>Control de insumos y stock del café</p>
     </div>
     {% if current_user.rol == 'admin' %}
-    <a href="{{ url_for('inventory.create') }}" class="btn btn-primary">+ Nuevo insumo</a>
+    <div class="page-header-actions">
+        <a href="{{ url_for('inventory.create') }}" class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo insumo
+        </a>
+    </div>
     {% endif %}
 </div>
 
@@ -23,7 +28,7 @@
                 <th>Stock actual</th>
                 <th>Stock mín.</th>
                 <th>Estado</th>
-                <th></th>
+                <th class="cell-actions">Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -31,30 +36,54 @@
             <tr>
                 <td><strong>{{ insumo.nombre }}</strong></td>
                 <td>{{ insumo.unidad_medida }}</td>
-                <td>${{ "{:,}".format(insumo.costo_unitario_cop) }}</td>
+                <td class="mono-number">${{ "{:,}".format(insumo.costo_unitario_cop) }}</td>
                 <td>
-                    <strong>{{ insumo.stock_actual }}</strong>
-                </td>
-                <td>{{ insumo.stock_minimo }}</td>
-                <td>
-                    {% if insumo.stock_actual <= 0 %}
-                    <span class="badge badge-stock-agotado">Agotado</span>
-                    {% elif insumo.stock_actual <= insumo.stock_minimo %}
-                    <span class="badge badge-stock-bajo">Stock bajo</span>
-                    {% else %}
-                    <span class="badge badge-stock-ok">Disponible</span>
+                    <strong class="mono-number">{{ insumo.stock_actual }}</strong>
+                    {% if insumo.stock_minimo > 0 %}
+                    <div class="progress-bar mt-1" style="max-width: 80px;">
+                        {% set pct = (insumo.stock_actual / (insumo.stock_minimo * 2)) * 100 %}
+                        {% if pct > 100 %}{% set pct = 100 %}{% endif %}
+                        <div class="progress-fill {% if insumo.stock_actual <= 0 %}progress-fill-danger{% elif insumo.stock_actual <= insumo.stock_minimo %}progress-fill-warning{% else %}progress-fill-success{% endif %}"
+                             style="width: {{ pct }}%;"></div>
+                    </div>
                     {% endif %}
                 </td>
+                <td class="mono-number">{{ insumo.stock_minimo }}</td>
                 <td>
-                    <div class="flex flex-center gap-1" style="flex-wrap: nowrap;">
-                        <a href="{{ url_for('inventory.movimientos', id=insumo.id) }}" class="btn btn-sm btn-outline">Mov.</a>
-                        <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-sm btn-outline">+</a>
+                    {% if insumo.stock_actual <= 0 %}
+                    <span class="badge badge-stock-agotado">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Agotado
+                    </span>
+                    {% elif insumo.stock_actual <= insumo.stock_minimo %}
+                    <span class="badge badge-stock-bajo">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Stock bajo
+                    </span>
+                    {% else %}
+                    <span class="badge badge-stock-ok">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        Disponible
+                    </span>
+                    {% endif %}
+                </td>
+                <td class="cell-actions">
+                    <div class="btn-group" style="justify-content: flex-end;">
+                        <a href="{{ url_for('inventory.movimientos', id=insumo.id) }}" class="btn btn-sm btn-outline" title="Ver movimientos">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        </a>
+                        <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-sm btn-outline" title="Nuevo movimiento">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </a>
                         {% if current_user.rol == 'admin' %}
                         <a href="{{ url_for('inventory.edit', id=insumo.id) }}" class="btn btn-sm btn-outline">Editar</a>
                         <form action="{{ url_for('inventory.delete', id=insumo.id) }}" method="post"
-                              onsubmit="return confirm('¿Eliminar {{ insumo.nombre }}? Esta acción no se puede deshacer si tiene movimientos o recetas asociadas.');"
+                              onsubmit="return confirm('¿Eliminar {{ insumo.nombre }}? Esta acción no se puede deshacer si tiene movimientos asociados.');"
                               style="display: inline;">
-                            <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
                         </form>
                         {% endif %}
                     </div>
@@ -67,8 +96,11 @@
 {% else %}
 <div class="card">
     <div class="card-body empty-state">
-        <span class="empty-icon">📦</span>
-        <p>No hay insumos registrados en el inventario.</p>
+        <span class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/></svg>
+        </span>
+        <h3>Inventario vacío</h3>
+        <p>No hay insumos registrados.</p>
         {% if current_user.rol == 'admin' %}
         <a href="{{ url_for('inventory.create') }}" class="btn btn-primary mt-2">Agregar insumo</a>
         {% endif %}

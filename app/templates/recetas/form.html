@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} receta · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ action }} receta</h1>
+        <p>{% if receta %}Editando: <strong>{{ receta.producto.nombre }} → {{ receta.insumo.nombre }}</strong>{% else %}Nueva receta para descuento de inventario{% endif %}</p>
+    </div>
+</div>
+
+<div class="row form-card">
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="form-group">
+                    <label for="producto_id" class="form-label">Producto</label>
+                    <select class="form-select" id="producto_id" name="producto_id" required>
+                        <option value="">— Seleccionar producto —</option>
+                        {% for p in productos %}
+                        <option value="{{ p.id }}" {% if receta and receta.producto_id == p.id %}selected{% endif %}>
+                            {{ p.nombre }} · ${{ "{:,}".format(p.precio_venta_cop) }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="insumo_id" class="form-label">Insumo</label>
+                    <select class="form-select" id="insumo_id" name="insumo_id" required>
+                        <option value="">— Seleccionar insumo —</option>
+                        {% for i in insumos %}
+                        <option value="{{ i.id }}" {% if receta and receta.insumo_id == i.id %}selected{% endif %}>
+                            {{ i.nombre }} (stock: {{ i.stock_actual }} {{ i.unidad_medida }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="cantidad_gramos" class="form-label">Cantidad en gramos</label>
+                    <input type="number" class="form-input" id="cantidad_gramos" name="cantidad_gramos"
+                           value="{{ receta.cantidad_gramos if receta else '' }}" required min="0.1" step="0.1" placeholder="18">
+                    <span class="form-hint">Gramos del insumo que consume una unidad del producto. Ej: 18g de café por taza.</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="descripcion" class="form-label">Descripción <span class="text-muted" style="font-weight: 400;">(opcional)</span></label>
+                    <input type="text" class="form-input" id="descripcion" name="descripcion"
+                           value="{{ receta.descripcion if receta else '' }}" placeholder="Ej: base, extra shot, cubierta…">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        {% if receta %}Guardar cambios{% else %}Crear receta{% endif %}
+                    </button>
+                    <a href="{{ url_for('recetas.index') }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

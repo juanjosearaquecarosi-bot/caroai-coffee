@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Recetas · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Recetas</h1>
+        <p>Vinculación de productos con insumos para descuento automático de inventario</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{{ url_for('recetas.create') }}" class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nueva receta
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    {% if recetas %}
+    <div class="table-wrapper" style="border: none; border-radius: 0;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Insumo</th>
+                    <th>Cantidad (g)</th>
+                    <th>Descripción</th>
+                    <th class="cell-actions"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for receta in recetas %}
+                <tr>
+                    <td><strong>{{ receta.producto.nombre }}</strong></td>
+                    <td>{{ receta.insumo.nombre }}</td>
+                    <td><strong class="mono-number">{{ receta.cantidad_gramos }}g</strong></td>
+                    <td class="text-muted text-small">{{ receta.descripcion or '—' }}</td>
+                    <td class="cell-actions">
+                        <div class="btn-group" style="justify-content: flex-end;">
+                            <a href="{{ url_for('recetas.edit', id=receta.id) }}" class="btn btn-sm btn-outline">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                Editar
+                            </a>
+                            <form action="{{ url_for('recetas.delete', id=receta.id) }}" method="post"
+                                  onsubmit="return confirm('¿Eliminar esta receta? Se usará el fallback por insumo_id directo si existe.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body empty-state">
+        <span class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </span>
+        <h3>Sin recetas</h3>
+        <p>Las recetas permiten descontar inventario automáticamente al vender productos.</p>
+        <p class="text-muted text-small mt-1">Ej: Café Americano → 18g de Café en grano por taza</p>
+        <a href="{{ url_for('recetas.create') }}" class="btn btn-primary mt-2">Crear primera receta</a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="callout callout-info mt-3">
+    <strong>Cómo funciona</strong>
+    <p>Al cobrar un pedido, si el producto tiene <strong>descuenta_inventario=True</strong>:</p>
+    <ol>
+        <li>Si existen <strong>Recetas</strong> para el producto: se descuenta la cantidad en gramos de cada insumo por la cantidad vendida.</li>
+        <li>Si <strong>no</strong> hay Recetas pero tiene <strong>insumo_id</strong> directo: se descuenta 1 unidad del insumo por cada producto vendido (fallback).</li>
+        <li>Si no hay suficiente stock: se muestra una advertencia y se omite el descuento (la venta se completa igual).</li>
+    </ol>
+</div>
+{% endblock %}

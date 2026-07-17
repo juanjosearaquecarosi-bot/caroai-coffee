@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} tasa · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ action }} tasa de cambio</h1>
+        <p>{% if tasa %}Editando: <strong>1 {{ tasa.moneda_origen }} = {{ tasa.tasa }} {{ tasa.moneda_destino }}</strong>{% else %}Nuevo registro de referencia{% endif %}</p>
+    </div>
+</div>
+
+<div class="row form-card" style="max-width: 560px;">
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="row" style="gap: 1rem;">
+                    <div class="flex-1">
+                        <div class="form-group">
+                            <label for="moneda_origen" class="form-label">Moneda origen</label>
+                            <select class="form-select" id="moneda_origen" name="moneda_origen" required>
+                                <option value="">—</option>
+                                <option value="COP" {% if tasa and tasa.moneda_origen == 'COP' %}selected{% endif %}>COP</option>
+                                <option value="USD" {% if tasa and tasa.moneda_origen == 'USD' %}selected{% endif %}>USD</option>
+                                <option value="VES" {% if tasa and tasa.moneda_origen == 'VES' %}selected{% endif %}>VES</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex" style="align-items: center; padding-top: 1.75rem;">
+                        <span style="font-size: 1.25rem; color: var(--color-text-muted);">→</span>
+                    </div>
+                    <div class="flex-1">
+                        <div class="form-group">
+                            <label for="moneda_destino" class="form-label">Moneda destino</label>
+                            <select class="form-select" id="moneda_destino" name="moneda_destino" required>
+                                <option value="">—</option>
+                                <option value="COP" {% if tasa and tasa.moneda_destino == 'COP' %}selected{% endif %}>COP</option>
+                                <option value="USD" {% if tasa and tasa.moneda_destino == 'USD' %}selected{% endif %}>USD</option>
+                                <option value="VES" {% if tasa and tasa.moneda_destino == 'VES' %}selected{% endif %}>VES</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="tasa" class="form-label">Tasa <span class="text-muted" style="font-weight: 400;">(1 origen = X destino)</span></label>
+                    <input type="number" class="form-input" id="tasa" name="tasa"
+                           value="{{ tasa.tasa if tasa else '' }}" required min="0.0001" step="0.0001" placeholder="4000">
+                    <span class="form-hint">Ej: 1 USD = 4000 COP → ingresar 4000</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="vigente_desde" class="form-label">Vigente desde</label>
+                    <input type="datetime-local" class="form-input" id="vigente_desde" name="vigente_desde"
+                           value="{{ now_str }}" style="max-width: 300px;">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        {% if tasa %}Guardar cambios{% else %}Crear tasa{% endif %}
+                    </button>
+                    <a href="{{ url_for('tasas.index') }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

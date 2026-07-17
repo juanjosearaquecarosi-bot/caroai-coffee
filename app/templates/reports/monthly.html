@@ -5,36 +5,74 @@
 <div class="page-header">
     <div>
         <h1>Reporte mensual</h1>
-        <p>{{ mes | capitalize }}</p>
+        <p>{{ mes_nombre | capitalize }} &middot; {{ selected_anio }}</p>
     </div>
-    <a href="{{ url_for('reports.index') }}" class="btn btn-outline">← Diario</a>
+    <div class="page-header-actions">
+        <a href="{{ url_for('reports.index') }}" class="btn btn-outline">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Diario
+        </a>
+        <a href="{{ url_for('gastos.index') }}" class="btn btn-outline">Gastos</a>
+    </div>
+</div>
+
+<!-- Selector de mes/año -->
+<div class="filter-bar">
+    <form method="GET" action="{{ url_for('reports.monthly') }}">
+        <div class="filter-group">
+            <label for="mes">Mes</label>
+            <select class="form-select" id="mes" name="mes">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if selected_mes == m %}selected{% endif %}>{{ m|string().zfill(2) }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="anio">Año</label>
+            <select class="form-select" id="anio" name="anio">
+                {% for a in range(2026, 2020, -1) %}
+                <option value="{{ a }}" {% if selected_anio == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-sm btn-primary">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                Ver mes
+            </button>
+        </div>
+    </form>
 </div>
 
 <!-- Key metrics -->
 <div class="card-grid mb-3">
     <div class="card stat-card">
-        <span class="stat-icon">💰</span>
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </span>
         <div class="stat-value">${{ "{:,}".format(total_vendido_cop) }}</div>
         <div class="stat-label">Total vendido (COP)</div>
     </div>
     <div class="card stat-card">
-        <span class="stat-icon">🧾</span>
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
         <div class="stat-value">{{ total_pedidos_mes }}</div>
-        <div class="stat-label">Pedidos cerrados</div>
+        <div class="stat-label">Pedidos pagados</div>
     </div>
     <div class="card stat-card">
-        <span class="stat-icon">📊</span>
-        <div class="stat-value">{{ ventas_por_dia|length }}</div>
-        <div class="stat-label">Días con ventas</div>
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M22 12h2M22 12l-3 3M22 12l-3-3M12 22v2M2 12H0M2 12l3 3M2 12l3-3"/></svg>
+        </span>
+        <div class="stat-value">{{ tazas_cafe }}</div>
+        <div class="stat-label">Tazas de café</div>
     </div>
     <div class="card stat-card">
-        <span class="stat-icon">⭐</span>
-        <div class="stat-value">
-            {% if ventas_por_dia %}
-            ${{ "{:,}".format((ventas_por_dia.values()|list|sum / ventas_por_dia|length)|int) }}
-            {% else %}0{% endif %}
-        </div>
-        <div class="stat-label">Promedio diario</div>
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        </span>
+        <div class="stat-value">{{ total_items_vendidos }}</div>
+        <div class="stat-label">Total productos</div>
     </div>
 </div>
 
@@ -44,20 +82,18 @@
         <div class="card-header">
             <h3>Ingresos por moneda</h3>
         </div>
-        <div class="card-body" style="padding: 1.25rem 1.5rem;">
+        <div class="card-body">
             {% if monedas_resumen %}
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <div class="info-list">
                 {% for moneda, data in monedas_resumen.items() %}
-                <div>
-                    <div class="flex flex-center" style="justify-content: space-between; margin-bottom: 0.25rem;">
-                        <span style="font-weight: 600; font-size: 0.9375rem;">{{ moneda }}</span>
-                        <span style="font-family: var(--font-display); font-weight: 600; font-size: 1.125rem;">
-                            ${{ "{:,}".format(data.monto_total) }}
-                        </span>
-                    </div>
-                    <span class="text-muted text-small">{{ data.cantidad_pedidos }} pedido{% if data.cantidad_pedidos != 1 %}s{% endif %}</span>
-                    {% if not loop.last %}<hr class="divider" style="margin: 0.75rem 0;">{% endif %}
+                <div class="info-row">
+                    <span class="info-label" style="font-size: 0.9375rem;"><strong>{{ moneda }}</strong></span>
+                    <span>
+                        <span class="info-value" style="font-family: var(--font-display); font-size: 1.125rem;">${{ "{:,}".format(data.monto_total) }}</span>
+                        <span class="text-muted text-small" style="display: block; text-align: right;">{{ data.cantidad_pedidos }} pedido{% if data.cantidad_pedidos != 1 %}s{% endif %}</span>
+                    </span>
                 </div>
+                {% if not loop.last %}<hr class="divider" style="margin: 0.5rem 0;">{% endif %}
                 {% endfor %}
             </div>
             {% else %}
@@ -73,13 +109,13 @@
         <div class="card-header">
             <h3>Productos más vendidos</h3>
         </div>
-        <div class="card-body" style="padding: 1.25rem 1.5rem;">
+        <div class="card-body">
             {% if top_productos %}
-            <div style="display: flex; flex-direction: column; gap: 0.625rem;">
+            <div class="info-list">
                 {% for nombre, cantidad in top_productos %}
-                <div class="flex flex-center" style="justify-content: space-between;">
-                    <span style="font-size: 0.9375rem;">{{ nombre }}</span>
-                    <span style="font-weight: 600;">{{ cantidad }}</span>
+                <div class="info-row">
+                    <span class="info-label" style="font-size: 0.9375rem;">{{ nombre }}</span>
+                    <span class="info-value mono-number">{{ cantidad }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -92,41 +128,161 @@
     </div>
 </div>
 
-<!-- Daily breakdown -->
+<!-- Expenses + Balance -->
+<div class="row row-cols-2 mb-3">
+    <div class="card">
+        <div class="card-header">
+            <h3>Gastos del mes</h3>
+            <span class="text-muted text-small">{{ gastos_mes|length }} gasto{% if gastos_mes|length != 1 %}s{% endif %}</span>
+        </div>
+        <div class="card-body">
+            {% if gastos_por_categoria %}
+            <div class="info-list">
+                {% for cat, data in {'nomina': 'Nómina', 'insumos': 'Insumos', 'mantenimiento': 'Mantenimiento'}.items() %}
+                {% if cat in gastos_por_categoria %}
+                <div class="info-row">
+                    <span class="info-label" style="font-size: 0.9375rem;"><strong>{{ data }}</strong></span>
+                    <span>
+                        <span class="info-value" style="font-family: var(--font-display); font-size: 1.125rem;">${{ "{:,}".format(gastos_por_categoria[cat].monto) }}</span>
+                        <span class="text-muted text-small" style="display: block; text-align: right;">
+                            {{ gastos_por_categoria[cat].cantidad }} registro{% if gastos_por_categoria[cat].cantidad != 1 %}s{% endif %}
+                            &middot; {{ gastos_por_categoria[cat].monedas|join(', ') }}
+                        </span>
+                    </span>
+                </div>
+                {% if not loop.last %}<hr class="divider" style="margin: 0.5rem 0;">{% endif %}
+                {% endif %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 1.5rem 0;">
+                <p class="text-muted">Sin gastos registrados este mes.</p>
+                <a href="{{ url_for('gastos.create') }}" class="btn btn-sm btn-primary mt-1">Registrar gasto</a>
+            </div>
+            {% endif %}
+        </div>
+        {% if gastos_por_moneda %}
+        <div class="card-footer">
+            <div class="totals-bar">
+                <strong>Total gastos:</strong>
+                {% for moneda, total in gastos_por_moneda.items() %}
+                <span class="total-item"><strong>{{ moneda }}:</strong> ${{ "{:,}".format(total) }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Balance del mes</h3>
+        </div>
+        <div class="card-body">
+            <div class="info-list">
+                <div class="info-row">
+                    <span class="info-label" style="font-size: 0.9375rem;">Ingresos COP</span>
+                    <span class="info-value" style="font-family: var(--font-display); font-size: 1.125rem; color: var(--color-success);">+${{ "{:,}".format(total_vendido_cop) }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label" style="font-size: 0.9375rem;">Gastos COP</span>
+                    <span class="info-value" style="font-family: var(--font-display); font-size: 1.125rem; color: var(--color-danger);">&minus;${{ "{:,}".format(gastos_cop) }}</span>
+                </div>
+                <hr class="divider" style="margin: 0.25rem 0;">
+                <div class="info-row">
+                    <span class="info-label" style="font-weight: 700; font-size: 1rem;">Balance COP</span>
+                    <span class="info-value" style="font-family: var(--font-display); font-weight: 700; font-size: 1.375rem; {% if balance_cop >= 0 %}color: var(--color-success);{% else %}color: var(--color-danger);{% endif %}">
+                        {% if balance_cop >= 0 %}+{% endif %}${{ "{:,}".format(balance_cop) }}
+                    </span>
+                </div>
+
+                {% set otras_monedas = gastos_por_moneda.items()|selectattr('0', 'ne', 'COP')|list %}
+                {% if otras_monedas %}
+                <hr class="divider" style="margin: 0.5rem 0;">
+                <div class="callout callout-warning">
+                    <strong>Gastos en otras monedas</strong>
+                    <p>
+                        {% for moneda, total in otras_monedas %}
+                        <strong>{{ moneda }}:</strong> ${{ "{:,}".format(total) }}{% if not loop.last %} · {% endif %}
+                        {% endfor %}
+                    </p>
+                    <p style="opacity: 0.8;">No hay tasa de cambio configurada en el MVP para convertir estos gastos a COP.</p>
+                </div>
+                {% endif %}
+
+                {% if not gastos_mes and not pedidos_mes %}
+                <div class="empty-state" style="padding: 1rem 0;">
+                    <p class="text-muted">Sin datos este mes.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Balance unificado (via TasaCambio) -->
+{% if balance_unificado %}
+<div class="card mb-3">
+    <div class="card-header">
+        <h3>Balance unificado estimado</h3>
+        <span class="text-muted text-small">Basado en {{ balance_unificado.tasa_usada }}</span>
+    </div>
+    <div class="card-body">
+        <div class="row row-cols-3" style="gap: 1.5rem;">
+            <div class="card stat-card" style="box-shadow: none; border: 1px solid var(--color-border-light);">
+                <span class="stat-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </span>
+                <div class="stat-value" style="font-size: 1.5rem; color: var(--color-success);">+${{ "{:,.2f}".format(balance_unificado.ingresos) }}</div>
+                <div class="stat-label">Ingresos ({{ balance_unificado.moneda }})</div>
+            </div>
+            <div class="card stat-card" style="box-shadow: none; border: 1px solid var(--color-border-light);">
+                <span class="stat-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-danger)" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                </span>
+                <div class="stat-value" style="font-size: 1.5rem; color: var(--color-danger);">&minus;${{ "{:,.2f}".format(balance_unificado.gastos) }}</div>
+                <div class="stat-label">Gastos ({{ balance_unificado.moneda }})</div>
+            </div>
+            <div class="card stat-card" style="box-shadow: none; border: 1px solid var(--color-border-light);">
+                <span class="stat-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                </span>
+                <div class="stat-value" style="font-size: 1.5rem; {% if balance_unificado.balance >= 0 %}color: var(--color-success);{% else %}color: var(--color-danger);{% endif %}">
+                    {% if balance_unificado.balance >= 0 %}+{% endif %}${{ "{:,.2f}".format(balance_unificado.balance) }}
+                </div>
+                <div class="stat-label">Balance ({{ balance_unificado.moneda }})</div>
+            </div>
+        </div>
+        <div class="callout callout-info mt-3">
+            <strong>Limitación</strong>
+            <p>Este balance es <strong>informativo</strong>. Utiliza la tasa de cambio registrada en <em>Tasas de cambio</em> para convertir los montos. Los totales reales por moneda están más arriba en la sección correspondiente. Esta conversión no debe reemplazar tu contabilidad oficial.</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Grafica simple de ventas por día -->
+{% if ventas_por_dia %}
 <div class="card">
     <div class="card-header">
         <h3>Ventas por día</h3>
     </div>
-    {% if ventas_por_dia %}
-    <div style="overflow-x: auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>Día</th>
-                    <th>Total COP</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for dia, total in ventas_por_dia|dictsort %}
-                <tr>
-                    <td><strong>{{ dia }}</strong></td>
-                    <td><strong>${{ "{:,}".format(total) }}</strong></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <tfoot style="background: var(--color-bg); font-weight: 600;">
-                <tr>
-                    <td style="padding: 0.875rem 1rem;">Total del mes</td>
-                    <td style="padding: 0.875rem 1rem;">${{ "{:,}".format(total_vendido_cop) }}</td>
-                </tr>
-            </tfoot>
-        </table>
+    <div class="card-body">
+        {% set max_vta = ventas_por_dia.values()|max %}
+        <div class="info-list">
+            {% for dia, total in ventas_por_dia.items() %}
+            <div class="info-row">
+                <span class="info-label" style="min-width: 48px;">{{ dia }}</span>
+                <div class="flex-1">
+                    <div class="progress-bar">
+                        {% set pct = (total / max_vta) * 100 %}
+                        <div class="progress-fill progress-fill-success" style="width: {{ pct }}%;"></div>
+                    </div>
+                </div>
+                <span class="info-value mono-number text-small" style="min-width: 80px; text-align: right;">${{ "{:,}".format(total) }}</span>
+            </div>
+            {% endfor %}
+        </div>
     </div>
-    {% else %}
-    <div class="card-body empty-state">
-        <span class="empty-icon">📅</span>
-        <p>No hay datos de ventas para este mes.</p>
-    </div>
-    {% endif %}
 </div>
+{% endif %}
 {% endblock %}

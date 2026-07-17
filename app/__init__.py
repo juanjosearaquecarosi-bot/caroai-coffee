@@ -1,11 +1,13 @@
 import os
 from flask import Flask, redirect, url_for
 from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect
 from .models import db
 from .database import init_app
 
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'  # will be created in auth blueprint
+csrf = CSRFProtect()
 
 
 def create_app():
@@ -16,9 +18,19 @@ def create_app():
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///caroai.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hora
 
     init_app(app)
     login_manager.init_app(app)
+    csrf.init_app(app)
+
+    # ── CSRF error handler amigable ──
+    from flask_wtf.csrf import CSRFError
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        flash('La sesión expiró o el token de seguridad no es válido. Por favor, intenta de nuevo.', 'warning')
+        return redirect(url_for('tables.index'))
 
     # User loader callback
     from .models import Usuario  # Import here to avoid circular import
@@ -33,12 +45,18 @@ def create_app():
     from .routes.inventory import inventory_bp
     from .routes.reports import reports_bp
     from .routes.auth import auth_bp
+    from .routes.gastos import gastos_bp
+    from .routes.recetas import recetas_bp
+    from .routes.tasas import tasas_bp
 
     app.register_blueprint(tables_bp, url_prefix='/tables')
     app.register_blueprint(sales_bp, url_prefix='/sales')
     app.register_blueprint(inventory_bp, url_prefix='/inventory')
     app.register_blueprint(reports_bp, url_prefix='/reports')
     app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(gastos_bp, url_prefix='/gastos')
+    app.register_blueprint(recetas_bp, url_prefix='/recetas')
+    app.register_blueprint(tasas_bp, url_prefix='/tasas')
 
     @app.route('/')
     def index():

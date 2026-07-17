@@ -1,97 +1,104 @@
 {% extends "base.html" %}
-{% block title %}Mesas · Caroai Café{% endblock %}
+{% block title %}Ubicaciones · Caroai Café{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
-        <h1>Mesas</h1>
-        <p>Estado actual de las mesas del café</p>
+        <h1>Ubicaciones</h1>
+        <p>Mesas, barra y puffs del café &mdash; abre una para comenzar</p>
     </div>
 </div>
 
 <!-- Stats summary -->
 <div class="card-grid mb-3">
     <div class="card stat-card">
-        <span class="stat-icon">🟢</span>
-        <div class="stat-value">{{ mesas|selectattr('estado', 'equalto', 'libre')|list|length }}</div>
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <div class="stat-value">{{ ubicaciones|selectattr('estado', 'equalto', 'libre')|list|length }}</div>
         <div class="stat-label">Libres</div>
     </div>
     <div class="card stat-card">
-        <span class="stat-icon">🟡</span>
-        <div class="stat-value">{{ mesas|selectattr('estado', 'equalto', 'ocupada')|list|length }}</div>
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        </span>
+        <div class="stat-value">{{ ubicaciones|selectattr('estado', 'equalto', 'ocupada')|list|length }}</div>
         <div class="stat-label">Ocupadas</div>
     </div>
     <div class="card stat-card">
-        <span class="stat-icon">⚪</span>
-        <div class="stat-value">{{ mesas|selectattr('estado', 'equalto', 'cerrada')|list|length }}</div>
-        <div class="stat-label">Cerradas</div>
-    </div>
-    <div class="card stat-card">
-        <span class="stat-icon">📋</span>
-        <div class="stat-value">{{ mesas|length }}</div>
-        <div class="stat-label">Total</div>
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </span>
+        <div class="stat-value">{{ ubicaciones|length }}</div>
+        <div class="stat-label">Total espacios</div>
     </div>
 </div>
 
-<!-- Mesa cards grid -->
-<div class="mesa-grid">
-    {% for mesa in mesas %}
-    <div class="mesa-card mesa-card-{{ mesa.estado }}">
-        <div class="mesa-numero">{{ mesa.numero }}</div>
+<!-- Ubicacion cards grid -->
+<div class="mesa-grid fade-in">
+    {% for ubicacion in ubicaciones %}
+    <div class="mesa-card mesa-card-{{ ubicacion.estado }}" style="animation-delay: {{ loop.index0 * 0.04 }}s;">
+        <div class="mesa-tipo-badge">
+            {% if ubicacion.tipo == 'mesa' %}
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M3 7h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><line x1="12" y1="11" x2="12" y2="19"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
+            {% elif ubicacion.tipo == 'barra' %}
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M6 8H5a4 4 0 0 0 0 8h1"/><rect x="6" y="8" width="12" height="10" rx="2"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+            {% else %}
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
+            {% endif %}
+        </div>
+        <div class="mesa-numero">{{ ubicacion.nombre }}</div>
 
         <div class="mesa-estado">
-            {% if mesa.estado == 'libre' %}
-                <span class="badge badge-libre">● Libre</span>
-            {% elif mesa.estado == 'ocupada' %}
-                <span class="badge badge-ocupada">● Ocupada</span>
+            {% if ubicacion.estado == 'libre' %}
+                <span class="badge badge-libre">
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                    Libre
+                </span>
             {% else %}
-                <span class="badge badge-cerrada">● Cerrada</span>
+                <span class="badge badge-ocupada">
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                    Ocupada
+                </span>
             {% endif %}
         </div>
 
         <div class="mesa-time">
-            {% if mesa.fecha_apertura and mesa.estado == 'ocupada' %}
-                Abierta {{ mesa.fecha_apertura.strftime('%H:%M') }}
-            {% elif mesa.fecha_cierre and mesa.estado == 'cerrada' %}
-                Cerrada {{ mesa.fecha_cierre.strftime('%H:%M') }}
+            {% if ubicacion.fecha_apertura and ubicacion.estado == 'ocupada' %}
+                <span class="text-muted-light">Abierta {{ ubicacion.fecha_apertura.strftime('%H:%M') }}</span>
             {% else %}
                 &nbsp;
             {% endif %}
         </div>
 
         <div class="mesa-actions">
-            {% if mesa.estado == 'libre' %}
-            <form action="{{ url_for('tables.open_mesa', mesa_id=mesa.id) }}" method="post">
-                <button type="submit" class="btn btn-success">Abrir mesa</button>
-            </form>
-            {% elif mesa.estado == 'ocupada' %}
-            <form action="{{ url_for('sales.create_pedido', mesa_id=mesa.id) }}" method="post">
-                <button type="submit" class="btn btn-primary">Nuevo pedido</button>
-            </form>
-            <form action="{{ url_for('tables.close_mesa', mesa_id=mesa.id) }}" method="post">
-                <button type="submit" class="btn btn-outline">Cerrar mesa</button>
+            {% if ubicacion.estado == 'libre' %}
+            <form action="{{ url_for('tables.open_ubicacion', ubicacion_id=ubicacion.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-success">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Abrir
+                </button>
             </form>
             {% else %}
-            <form action="{{ url_for('tables.reset_mesa', mesa_id=mesa.id) }}" method="post">
-                <button type="submit" class="btn btn-secondary">Reiniciar mesa</button>
-            </form>
+                {% set open_pedidos = ubicacion.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
+                {% if open_pedidos %}
+                <a href="{{ url_for('sales.detail', pedido_id=open_pedidos[0].id) }}" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    Pedido #{{ open_pedidos[0].id }}
+                </a>
+                {% endif %}
             {% endif %}
         </div>
-
-        {% if mesa.estado == 'ocupada' %}
-        {% set open_pedidos = mesa.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
-        {% if open_pedidos %}
-        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--color-border-light); font-size: 0.75rem; color: var(--color-text-secondary);">
-            Pedido #{{ open_pedidos[0].id }}
-            <a href="{{ url_for('sales.detail', pedido_id=open_pedidos[0].id) }}" style="color: var(--color-accent); text-decoration: none; font-weight: 600; margin-left: 0.5rem;">Ver →</a>
-        </div>
-        {% endif %}
-        {% endif %}
     </div>
     {% else %}
-    <div class="empty-state" style="grid-column: 1 / -1;">
-        <span class="empty-icon">🪑</span>
-        <p>No hay mesas registradas. Agrega mesas desde la base de datos para comenzar.</p>
+    <div class="card" style="grid-column: 1 / -1;">
+        <div class="card-body empty-state">
+            <span class="empty-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </span>
+            <p>No hay ubicaciones registradas. Agréguelas desde la consola para comenzar.</p>
+        </div>
     </div>
     {% endfor %}
 </div>

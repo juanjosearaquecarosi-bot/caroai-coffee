@@ -5,14 +5,15 @@
 <div class="page-header">
     <div>
         <h1>{{ action }} insumo</h1>
-        <p>{% if insumo %}Editando {{ insumo.nombre }}{% else %}Nuevo insumo para el inventario{% endif %}</p>
+        <p>{% if insumo %}Editando <strong>{{ insumo.nombre }}</strong>{% else %}Nuevo insumo para el inventario{% endif %}</p>
     </div>
 </div>
 
-<div class="row" style="max-width: 640px;">
-    <div class="card" style="width: 100%;">
+<div class="row form-card">
+    <div class="card">
         <div class="card-body">
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="nombre" class="form-label">Nombre del insumo</label>
                     <input type="text" class="form-input" id="nombre" name="nombre"
@@ -31,26 +32,35 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="costo_unitario_cop" class="form-label">Costo unitario (COP)</label>
-                    <input type="number" class="form-input" id="costo_unitario_cop" name="costo_unitario_cop"
-                           value="{{ insumo.costo_unitario_cop if insumo else '' }}" required min="0" placeholder="0">
-                </div>
-
-                <div class="form-group">
-                    <label for="stock_actual" class="form-label">Stock actual</label>
-                    <input type="number" class="form-input" id="stock_actual" name="stock_actual"
-                           value="{{ insumo.stock_actual if insumo else '' }}" required min="0" placeholder="0">
-                </div>
-
-                <div class="form-group">
-                    <label for="stock_minimo" class="form-label">Stock mínimo</label>
-                    <input type="number" class="form-input" id="stock_minimo" name="stock_minimo"
-                           value="{{ insumo.stock_minimo if insumo else '' }}" required min="0" placeholder="0">
+                <div class="row" style="gap: 1rem;">
+                    <div class="flex-1">
+                        <div class="form-group">
+                            <label for="costo_unitario_cop" class="form-label">Costo unitario (COP)</label>
+                            <input type="number" class="form-input" id="costo_unitario_cop" name="costo_unitario_cop"
+                                   value="{{ insumo.costo_unitario_cop if insumo else '' }}" required min="0" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="form-group">
+                            <label for="stock_actual" class="form-label">Stock actual</label>
+                            <input type="number" class="form-input" id="stock_actual" name="stock_actual"
+                                   value="{{ insumo.stock_actual if insumo else '' }}" required min="0" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="form-group">
+                            <label for="stock_minimo" class="form-label">Stock mínimo</label>
+                            <input type="number" class="form-input" id="stock_minimo" name="stock_minimo"
+                                   value="{{ insumo.stock_minimo if insumo else '' }}" required min="0" placeholder="0">
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Guardar insumo</button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Guardar insumo
+                    </button>
                     <a href="{{ url_for('inventory.index') }}" class="btn btn-secondary">Cancelar</a>
                 </div>
             </form>

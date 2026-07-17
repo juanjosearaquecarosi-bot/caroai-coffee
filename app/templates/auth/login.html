@@ -4,22 +4,35 @@
 {% block head_extra %}
 <style>
     .login-page {
-        min-height: calc(100vh - var(--nav-height) - 4rem);
+        min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
         padding: 1rem;
+        background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-accent-light) 100%);
     }
 
     .login-card {
         background: var(--color-surface);
         border: 1px solid var(--color-border);
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius-xl);
         box-shadow: var(--shadow-lg);
         padding: 2.5rem;
         width: 100%;
         max-width: 400px;
-        animation: fadeIn 0.4s ease;
+        animation: fadeIn 0.5s ease;
+        position: relative;
+    }
+
+    .login-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--color-accent), var(--color-accent-hover));
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     }
 
     .login-brand {
@@ -28,24 +41,26 @@
     }
 
     .login-brand-icon {
-        width: 56px;
-        height: 56px;
-        background: var(--color-accent);
-        border-radius: 14px;
+        width: 64px;
+        height: 64px;
+        background: linear-gradient(135deg, var(--color-accent), var(--color-accent-hover));
+        border-radius: 16px;
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
-        font-size: 1.5rem;
+        font-size: 1.75rem;
         font-weight: 700;
         margin: 0 auto 1rem;
+        box-shadow: 0 4px 12px rgba(184, 145, 110, 0.3);
     }
 
     .login-brand h1 {
         font-family: var(--font-display);
-        font-size: 1.5rem;
+        font-size: 1.625rem;
         font-weight: 600;
         color: var(--color-text-primary);
+        letter-spacing: -0.02em;
     }
 
     .login-brand h1 span { color: var(--color-accent); }
@@ -64,13 +79,37 @@
 
     .login-card .form-group { margin-bottom: 1.25rem; }
 
-    .login-card .btn { width: 100%; padding: 0.75rem; font-size: 0.9375rem; }
+    .login-card .btn { width: 100%; padding: 0.75rem; font-size: 0.9375rem; border-radius: var(--radius-sm); }
 
     .login-footer {
         text-align: center;
         margin-top: 1.5rem;
         font-size: 0.75rem;
         color: var(--color-text-muted);
+        line-height: 1.6;
+    }
+
+    .login-credentials {
+        background: var(--color-info-bg);
+        border-radius: var(--radius-sm);
+        padding: 0.75rem 1rem;
+        margin-top: 1rem;
+        font-size: 0.75rem;
+        text-align: left;
+    }
+
+    .login-credentials strong {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--color-info-text);
+    }
+
+    .login-credentials code {
+        display: block;
+        font-size: 0.6875rem;
+        color: var(--color-info-text);
+        opacity: 0.8;
+        line-height: 1.5;
     }
 </style>
 {% endblock %}
@@ -87,6 +126,7 @@
         <hr class="login-divider">
 
         <form method="POST" action="{{ url_for('auth.login') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label for="email" class="form-label">Correo electrónico</label>
                 <input type="email" class="form-input" id="email" name="email"
@@ -97,7 +137,7 @@
                 <input type="password" class="form-input" id="password" name="password"
                        placeholder="••••••••" required autocomplete="current-password">
             </div>
-            <button type="submit" class="btn btn-primary">Ingresar</button>
+            <button type="submit" class="btn btn-primary">Ingresar al sistema</button>
         </form>
 
         <div class="login-footer">

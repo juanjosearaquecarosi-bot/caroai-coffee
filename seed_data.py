@@ -1,105 +1,242 @@
-from app import create_app
-from app.models import db, Producto, Insumo, TasaCambio, Receta
-from datetime import date
-import os
+"""
+seed_data.py  —  Inicializa la base de datos con datos de prueba completos (Fase 4).
 
-def seed_data():
-    app = create_app()
+Uso:  python seed_data.py
+
+Construye una app Flask mínima (solo DB, sin rutas).
+Elimina todas las tablas y las recrea con datos de prueba.
+"""
+
+from flask import Flask
+from app.models import (
+    db, Usuario, Ubicacion, Producto, Insumo,
+    Receta, TasaCambio, Gasto,
+)
+from datetime import datetime, date
+
+
+def _minimal_app():
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = 'seed-only'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///caroai.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    return app
+
+
+def seed():
+    app = _minimal_app()
+
     with app.app_context():
-        # Create tables if they don't exist
+        db.drop_all()
         db.create_all()
+        print("✔  Tablas recreadas desde cero.")
 
-        # Seed inicial data from Excel (we'll use sample data for now)
-        excel_path = os.path.join(os.path.dirname(__file__), '..', '..', 'Descargas', 'Caroai Cafe control ventas (1).xlsx')
-        if os.path.exists(excel_path):
-            print("Parsing Excel file...")
-            # For now, we'll skip parsing and manually insert some sample data.
-            # In a real scenario, we would call parse_excel and insert.
-            # We'll insert a few sample productos and insumos to test.
-            pass
-        else:
-            print("Excel file not found, using sample data.")
+        # ────────────────────────────────────────
+        #  1. USUARIOS
+        # ────────────────────────────────────────
+        admin = Usuario(nombre='Admin Caroai', email='admin@caroai.com', rol='admin')
+        admin.set_password('admin123')
 
-        # Check if we already have data
-        if Producto.query.count() == 0:
-            # Sample products
-            productos_sample = [
-                {'nombre': 'Espresso', 'categoria': 'bebida', 'precio_venta_cop': 4000},
-                {'nombre': 'Americano', 'categoria': 'bebida', 'precio_venta_cop': 4500},
-                {'nombre': 'Cappuccino', 'categoria': 'bebida', 'precio_venta_cop': 6500},
-                {'nombre': 'Latte', 'categoria': 'bebida', 'precio_venta_cop': 7500},
-                {'nombre': 'Torta de chocolate', 'categoria': 'comida', 'precio_venta_cop': 5000},
-                {'nombre': 'Empanada', 'categoria': 'comida', 'precio_venta_cop': 3000},
-            ]
-            for p in productos_sample:
-                producto = Producto(**p)
-                db.session.add(producto)
-            db.session.commit()
-            print(f"Added {len(productos_sample)} sample products.")
+        empleado = Usuario(nombre='Empleado Caroai', email='empleado@caroai.com', rol='empleado')
+        empleado.set_password('empleado123')
 
-        if Insumo.query.count() == 0:
-            # Sample insumos
-            insumos_sample = [
-                {'nombre': 'Café kilo', 'unidad_medida': 'kg', 'costo_unitario_cop': 72000, 'stock_actual': 10, 'stock_minimo': 2},
-                {'nombre': 'Leche 900ml', 'unidad_medida': 'l', 'costo_unitario_cop': 3000, 'stock_actual': 20, 'stock_minimo': 5},
-                {'nombre': 'Azucar 100 sticks', 'unidad_medida': 'unidad', 'costo_unitario_cop': 10000, 'stock_actual': 50, 'stock_minimo': 10},
-                {'nombre': 'Cacao kilo', 'unidad_medida': 'kg', 'costo_unitario_cop': 20000, 'stock_actual': 5, 'stock_minimo': 1},
-                {'nombre': 'Vainilla litro', 'unidad_medida': 'l', 'costo_unitario_cop': 8000, 'stock_actual': 10, 'stock_minimo': 2},
-            ]
-            for insumo in insumos_sample:
-                i = Insumo(**insumo)
-                db.session.add(i)
-            db.session.commit()
-            print(f"Added {len(insumos_sample)} sample insumos.")
+        db.session.add_all([admin, empleado])
+        db.session.commit()
+        print("✔  Usuarios: admin@caroai.com / empleado@caroai.com")
 
-        # Ensure we have a tasa for today
-        today = date.today()
-        if not TasaCambio.query.filter_by(fecha=today).first():
-            tasa = TasaCambio(
-                fecha=today,
-                tasa_cop_usd=3600.0,   # placeholder, should be configured
-                tasa_tienda_bs_usd=4.5   # placeholder
-            )
-            db.session.add(tasa)
-            db.session.commit()
-            print(f"Added tasa for {today}")
+        # ────────────────────────────────────────
+        #  2. UBICACIONES
+        # ────────────────────────────────────────
+        ubicaciones = [
+            Ubicacion(nombre='Mesa 1', tipo='mesa'),
+            Ubicacion(nombre='Mesa 2', tipo='mesa'),
+            Ubicacion(nombre='Mesa 3', tipo='mesa'),
+            Ubicacion(nombre='Mesa 4', tipo='mesa'),
+            Ubicacion(nombre='Mesa 5', tipo='mesa'),
+            Ubicacion(nombre='Barra', tipo='barra'),
+            Ubicacion(nombre='Puff 1', tipo='puff'),
+            Ubicacion(nombre='Puff 2', tipo='puff'),
+        ]
+        db.session.add_all(ubicaciones)
+        db.session.commit()
+        print("✔  8 ubicaciones (5 mesas + 1 barra + 2 puffs)")
 
-        # Add sample recetas (producto -> insumo)
-        if Receta.query.count() == 0:
-            # We need to get the producto and insumo ids
-            espresso = Producto.query.filter_by(nombre='Espresso').first()
-            cappuccino = Producto.query.filter_by(nombre='Cappuccino').first()
-            latte = Producto.query.filter_by(nombre='Latte').first()
-            torta_chocolate = Producto.query.filter_by(nombre='Torta de chocolate').first()
+        # ────────────────────────────────────────
+        #  3. INSUMOS
+        # ────────────────────────────────────────
+        insumos = [
+            Insumo(nombre='Café en grano x kg',       unidad_medida='kg',    costo_unitario_cop=72000, stock_actual=10, stock_minimo=2),
+            Insumo(nombre='Leche entera x 900ml',     unidad_medida='l',     costo_unitario_cop=3000,  stock_actual=15, stock_minimo=5),
+            Insumo(nombre='Refresco lata x 355ml',    unidad_medida='unidad', costo_unitario_cop=1800,  stock_actual=48, stock_minimo=12),
+            Insumo(nombre='Pastel entero x 10 porc',  unidad_medida='unidad', costo_unitario_cop=25000, stock_actual=4,  stock_minimo=1),
+        ]
+        db.session.add_all(insumos)
+        db.session.commit()
 
-            cafe_kilo = Insumo.query.filter_by(nombre='Café kilo').first()
-            leche_900ml = Insumo.query.filter_by(nombre='Leche 900ml').first()
-            azucar_sticks = Insumo.query.filter_by(nombre='Azucar 100 sticks').first()
-            cacao_kilo = Insumo.query.filter_by(nombre='Cacao kilo').first()
-            vainilla_litro = Insumo.query.filter_by(nombre='Vainilla litro').first()
+        insumo_cafe = Insumo.query.filter_by(nombre='Café en grano x kg').first()
+        insumo_leche = Insumo.query.filter_by(nombre='Leche entera x 900ml').first()
+        insumo_refresco = Insumo.query.filter_by(nombre='Refresco lata x 355ml').first()
+        insumo_pastel = Insumo.query.filter_by(nombre='Pastel entero x 10 porc').first()
+        print("✔  4 insumos base con stock inicial")
 
-            recetas_sample = [
-                # Espresso: 18g de café por taza (0.018 kg)
-                {'producto_id': espresso.id, 'insumo_id': cafe_kilo.id, 'cantidad_usada_por_unidad': 0.018},
-                # Cappuccino: mismo café + leche
-                {'producto_id': cappuccino.id, 'insumo_id': cafe_kilo.id, 'cantidad_usada_por_unidad': 0.018},
-                {'producto_id': cappuccino.id, 'insumo_id': leche_900ml.id, 'cantidad_usada_por_unidad': 0.15},  # 150 ml
-                # Latte: más leche
-                {'producto_id': latte.id, 'insumo_id': cafe_kilo.id, 'cantidad_usada_por_unidad': 0.018},
-                {'producto_id': latte.id, 'insumo_id': leche_900ml.id, 'cantidad_usada_por_unidad': 0.25},  # 250 ml
-                # Torta de chocolate: harina, cacao, etc. We'll simplified: cacao
-                {'producto_id': torta_chocolate.id, 'insumo_id': cacao_kilo.id, 'cantidad_usada_por_unidad': 0.05},  # 50g per unidad
-                # Azúcar para bebidas (opcional)
-                {'producto_id': espresso.id, 'insumo_id': azucar_sticks.id, 'cantidad_usada_por_unidad': 1},  # 1 stick
-                {'producto_id': cappuccino.id, 'insumo_id': azucar_sticks.id, 'cantidad_usada_por_unidad': 1},
-                {'producto_id': latte.id, 'insumo_id': azucar_sticks.id, 'cantidad_usada_por_unidad': 1},
-            ]
-            for r in recetas_sample:
-                receta = Receta(**r)
-                db.session.add(receta)
-            db.session.commit()
-            print(f"Added {len(recetas_sample)} sample recetas.")
+        # ────────────────────────────────────────
+        #  4. PRODUCTOS
+        # ────────────────────────────────────────
+        productos = [
+            Producto(
+                nombre='Café Americano',
+                categoria='bebida',
+                precio_venta_cop=4500,
+                descuenta_inventario=True,  # ahora SÍ descuenta via Receta
+            ),
+            Producto(
+                nombre='Capuchino',
+                categoria='bebida',
+                precio_venta_cop=6500,
+                descuenta_inventario=True,  # ahora SÍ descuenta via Receta
+            ),
+            Producto(
+                nombre='Refresco Personal',
+                categoria='bebida',
+                precio_venta_cop=3000,
+                descuenta_inventario=True,
+                insumo_id=insumo_refresco.id,  # fallback directo (sin receta)
+            ),
+            Producto(
+                nombre='Porción de Torta',
+                categoria='comida',
+                precio_venta_cop=5000,
+                descuenta_inventario=True,
+                insumo_id=insumo_pastel.id,  # fallback directo (sin receta)
+            ),
+        ]
+        db.session.add_all(productos)
+        db.session.commit()
+
+        prod_cafe = Producto.query.filter_by(nombre='Café Americano').first()
+        prod_capuchino = Producto.query.filter_by(nombre='Capuchino').first()
+        print("✔  4 productos (Café Americano y Capuchino con descuenta_inventario=True)")
+
+        # ────────────────────────────────────────
+        #  5. RECETAS (Fase 4)
+        # ────────────────────────────────────────
+        recetas = [
+            Receta(
+                producto_id=prod_cafe.id,
+                insumo_id=insumo_cafe.id,
+                cantidad_gramos=18.0,  # 18g de café por taza de Americano
+                descripcion='base',
+            ),
+            Receta(
+                producto_id=prod_capuchino.id,
+                insumo_id=insumo_cafe.id,
+                cantidad_gramos=18.0,  # 18g de café
+                descripcion='base',
+            ),
+            Receta(
+                producto_id=prod_capuchino.id,
+                insumo_id=insumo_leche.id,
+                cantidad_gramos=200.0,  # 200ml de leche (≈200g para descuento)
+                descripcion='leche vaporizada',
+            ),
+        ]
+        db.session.add_all(recetas)
+        db.session.commit()
+        print("✔  3 recetas:")
+        print("      Café Americano → 18g Café en grano")
+        print("      Capuchino → 18g Café en grano + 200g Leche")
+
+        # ────────────────────────────────────────
+        #  6. TASAS DE CAMBIO (Fase 4)
+        # ────────────────────────────────────────
+        tasas = [
+            TasaCambio(
+                moneda_origen='COP',
+                moneda_destino='USD',
+                tasa=4200.0,
+                vigente_desde=datetime(2026, 7, 1, 0, 0, 0),
+            ),
+            TasaCambio(
+                moneda_origen='COP',
+                moneda_destino='VES',
+                tasa=0.18,  # 1 COP = 0.18 VES (tasa de referencia)
+                vigente_desde=datetime(2026, 7, 1, 0, 0, 0),
+            ),
+        ]
+        db.session.add_all(tasas)
+        db.session.commit()
+        print("✔  2 tasas de cambio:")
+        print("      1 COP = 0.000238 USD")
+        print("      1 COP = 0.18 VES")
+
+        # ────────────────────────────────────────
+        #  7. GASTOS DE EJEMPLO (Fase 3)
+        # ────────────────────────────────────────
+        gastos = [
+            Gasto(
+                concepto='Pago nómina mes julio',
+                categoria='nomina',
+                monto=2400000,
+                moneda='COP',
+                fecha=date(2026, 7, 15),
+            ),
+            Gasto(
+                concepto='Compra leche fresca Alpina',
+                categoria='insumos',
+                monto=45000,
+                moneda='COP',
+                fecha=date(2026, 7, 10),
+                observaciones='15 unidades x 900ml',
+            ),
+            Gasto(
+                concepto='Reparación máquina espresso',
+                categoria='mantenimiento',
+                monto=180000,
+                moneda='COP',
+                fecha=date(2026, 7, 8),
+            ),
+            Gasto(
+                concepto='Pago factura internet',
+                categoria='mantenimiento',
+                monto=35,
+                moneda='USD',
+                fecha=date(2026, 7, 5),
+                observaciones='Pago mensual proveedor',
+            ),
+        ]
+        db.session.add_all(gastos)
+        db.session.commit()
+        print("✔  4 gastos de ejemplo (nómina, insumos, mantenimiento COP y USD)")
+
+        # ────────────────────────────────────────
+        #  RESUMEN
+        # ────────────────────────────────────────
+        insumo_cafe = Insumo.query.filter_by(nombre='Café en grano x kg').first()
+        insumo_leche = Insumo.query.filter_by(nombre='Leche entera x 900ml').first()
+        # Simular 10 ventas de café para probar descuento
+        # (el stock inicial se descuenta al vender, no en seed)
+
+        print()
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("  ¡Base de datos Fase 4 lista!")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"  Stock Café en grano:  {insumo_cafe.stock_actual} kg")
+        print(f"  Stock Leche:          {insumo_leche.stock_actual} l")
+        print(f"  Recetas activas:      {Receta.query.count()}")
+        print(f"  Tasas de cambio:      {TasaCambio.query.count()}")
+        print(f"  Gastos registrados:   {Gasto.query.count()}")
+        print()
+        print("  Prueba rápida:")
+        print("  1. python run.py")
+        print("  2. Login como admin@caroai.com / admin123")
+        print("  3. Abrir una mesa, crear pedido con Café Americano")
+        print("  4. Cobrar y verificar que se descuentan 18g de café en grano")
+        print("  5. Ir a Recetas → ver las 3 recetas creadas")
+        print("  6. Ir a Tasas → ver las 2 tasas de cambio")
+        print("  7. Ir a Reportes → Mensual → ver balance unificado estimado en USD")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
 
 if __name__ == '__main__':
-    seed_data()
-    print("Seeding completed.")
+    seed()
