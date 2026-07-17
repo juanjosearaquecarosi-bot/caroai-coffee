@@ -1,92 +1,98 @@
 {% extends "base.html" %}
-{% block title %}Mesas - Caroai Café{% endblock %}
-{% block content %}
-<h1 class="mb-4">Estado de las Mesas</h1>
-<a href="#" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#mesaModal">Abrir Nueva Mesa</a>
-<table class="table table-striped table-hover">
-    <thead class="table-dark">
-        <tr>
-            <th>Número</th>
-            <th>Estado</th>
-            <th>Fecha Apertura</th>
-            <th>Fecha Cierre</th>
-            <th>Acciones</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for mesa in mesas %}
-        <tr>
-            <td>{{ mesa.numero }}</td>
-            <td>
-                {% if mesa.estado == 'libre' %}<span class="badge bg-success">Libre</span>
-                {% elif mesa.estado == 'ocupada' %}<span class="badge bg-warning text-dark">Ocupada</span>
-                {% else %}<span class="badge bg-secondary">Cerrada</span>{% endif %}
-            </td>
-            <td>{{ mesa.fecha_apertura.strftime('%d/%m/%Y %H:%M') if mesa.fecha_apertura else '-' }}</td>
-            <td>{{ mesa.fecha_cierre.strftime('%d/%m/%Y %H:%M') if mesa.fecha_cierre else '-' }}</td>
-            <td>
-                {% if mesa.estado == 'libre' %}
-                <form action="{{ url_for('tables.open_mesa', mesa_id=mesa.id) }}" method="post" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-success">Abrir</button>
-                </form>
-                {% elif mesa.estado == 'ocupada' %}
-                <form action="{{ url_for('tables.close_mesa', mesa_id=mesa.id) }}" method="post" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">Cerrar</button>
-                </form>
-                {% else %}
-                <form action="{{ url_for('tables.reset_mesa', mesa_id=mesa.id) }}" method="post" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-secondary">Reiniciar</button>
-                </form>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+{% block title %}Mesas · Caroai Café{% endblock %}
 
-<!-- Modal para abrir una nueva mesa (en este caso, solo seleccionamos una mesa libre y la abrimos) -->
-<div class="modal fade" id="mesaModal" tabindex="-1" aria-labelledby="mesaModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="mesaModalLabel">Abrir Mesa</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Seleccione la mesa que desea abrir:</p>
-                <form id="openMesaForm" action="" method="post">
-                    <div class="mb-3">
-                        <label for="mesaSelect" class="form-label">Mesa</label>
-                        <select class="form-select" id="mesaSelect" name="mesa_id" required>
-                            <option value="">-- Seleccione una mesa libre --</option>
-                            {% for mesa in mesas %}
-                            {% if mesa.estado == 'libre' %}
-                            <option value="{{ mesa.id }}">{{ mesa.numero }}</option>
-                            {% endif %}
-                            {% endfor %}
-                        </select>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-success" id="openMesaBtn">Abrir</button>
-            </div>
-        </div>
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Mesas</h1>
+        <p>Estado actual de las mesas del café</p>
     </div>
 </div>
 
-<script>
-document.getElementById('openMesaBtn').addEventListener('click', function() {
-    const mesaId = document.getElementById('mesaSelect').value;
-    if (mesaId) {
-        // Submit the form to the open_mesa route
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/tables/open/' + mesaId;
-        document.body.appendChild(form);
-        form.submit();
-    }
-});
-</script>
+<!-- Stats summary -->
+<div class="card-grid mb-3">
+    <div class="card stat-card">
+        <span class="stat-icon">🟢</span>
+        <div class="stat-value">{{ mesas|selectattr('estado', 'equalto', 'libre')|list|length }}</div>
+        <div class="stat-label">Libres</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">🟡</span>
+        <div class="stat-value">{{ mesas|selectattr('estado', 'equalto', 'ocupada')|list|length }}</div>
+        <div class="stat-label">Ocupadas</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">⚪</span>
+        <div class="stat-value">{{ mesas|selectattr('estado', 'equalto', 'cerrada')|list|length }}</div>
+        <div class="stat-label">Cerradas</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">📋</span>
+        <div class="stat-value">{{ mesas|length }}</div>
+        <div class="stat-label">Total</div>
+    </div>
+</div>
+
+<!-- Mesa cards grid -->
+<div class="mesa-grid">
+    {% for mesa in mesas %}
+    <div class="mesa-card mesa-card-{{ mesa.estado }}">
+        <div class="mesa-numero">{{ mesa.numero }}</div>
+
+        <div class="mesa-estado">
+            {% if mesa.estado == 'libre' %}
+                <span class="badge badge-libre">● Libre</span>
+            {% elif mesa.estado == 'ocupada' %}
+                <span class="badge badge-ocupada">● Ocupada</span>
+            {% else %}
+                <span class="badge badge-cerrada">● Cerrada</span>
+            {% endif %}
+        </div>
+
+        <div class="mesa-time">
+            {% if mesa.fecha_apertura and mesa.estado == 'ocupada' %}
+                Abierta {{ mesa.fecha_apertura.strftime('%H:%M') }}
+            {% elif mesa.fecha_cierre and mesa.estado == 'cerrada' %}
+                Cerrada {{ mesa.fecha_cierre.strftime('%H:%M') }}
+            {% else %}
+                &nbsp;
+            {% endif %}
+        </div>
+
+        <div class="mesa-actions">
+            {% if mesa.estado == 'libre' %}
+            <form action="{{ url_for('tables.open_mesa', mesa_id=mesa.id) }}" method="post">
+                <button type="submit" class="btn btn-success">Abrir mesa</button>
+            </form>
+            {% elif mesa.estado == 'ocupada' %}
+            <form action="{{ url_for('sales.create_pedido', mesa_id=mesa.id) }}" method="post">
+                <button type="submit" class="btn btn-primary">Nuevo pedido</button>
+            </form>
+            <form action="{{ url_for('tables.close_mesa', mesa_id=mesa.id) }}" method="post">
+                <button type="submit" class="btn btn-outline">Cerrar mesa</button>
+            </form>
+            {% else %}
+            <form action="{{ url_for('tables.reset_mesa', mesa_id=mesa.id) }}" method="post">
+                <button type="submit" class="btn btn-secondary">Reiniciar mesa</button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if mesa.estado == 'ocupada' %}
+        {% set open_pedidos = mesa.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
+        {% if open_pedidos %}
+        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--color-border-light); font-size: 0.75rem; color: var(--color-text-secondary);">
+            Pedido #{{ open_pedidos[0].id }}
+            <a href="{{ url_for('sales.detail', pedido_id=open_pedidos[0].id) }}" style="color: var(--color-accent); text-decoration: none; font-weight: 600; margin-left: 0.5rem;">Ver →</a>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="grid-column: 1 / -1;">
+        <span class="empty-icon">🪑</span>
+        <p>No hay mesas registradas. Agrega mesas desde la base de datos para comenzar.</p>
+    </div>
+    {% endfor %}
+</div>
 {% endblock %}

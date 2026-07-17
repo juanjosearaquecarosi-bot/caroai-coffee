@@ -1,61 +1,78 @@
 {% extends "base.html" %}
-{% block title %}Inventario - Caroai Café{% endblock %}
+{% block title %}Inventario · Caroai Café{% endblock %}
+
 {% block content %}
-<h1 class="mb-4">Inventario de Insumos</h1>
-<div class="mb-4">
-    <a href="{{ url_for('inventory.create') }}" class="btn btn-primary">+ Nuevo Insumo</a>
+<div class="page-header">
+    <div>
+        <h1>Inventario</h1>
+        <p>Control de insumos y stock del café</p>
+    </div>
+    {% if current_user.rol == 'admin' %}
+    <a href="{{ url_for('inventory.create') }}" class="btn btn-primary">+ Nuevo insumo</a>
+    {% endif %}
 </div>
 
 {% if insumos %}
-<table class="table table-striped table-hover">
-    <thead class="table-dark">
-        <tr>
-        <th>Nombre</th>
-        <th>Unidad</th>
-        <th>Costo Unitario (COP)</th>
-        <th>Stock Actual</th>
-        <th>Stock Mínimo</th>
-        <th>Estado</th>
-        <th>Acciones</th>
-    </tr>
-</thead>
-<tbody>
-    {% for insumo in insumos %}
-    <tr>
-        <td>{{ insumo.nombre }}</td>
-        <td>{{ insumo.unidad_medida }}</td>
-        <td>${{ insumo.costo_unitario_cop }}</td>
-        <td>
-            {% if insumo.stock_actual <= insumo.stock_minimo %}
-                <span class="badge bg-danger">{{ insumo.stock_actual }}</span>
-            {% else %}
-                <span class="badge bg-success">{{ insumo.stock_actual }}</span>
-            {% endif %}
-        </td>
-        <td>{{ insumo.stock_minimo }}</td>
-        <td>
-            {% if insumo.stock_actual <= insumo.stock_minimo %}
-                <span class="badge bg-danger">Stock Bajo</span>
-            {% elif insumo.stock_actual == 0 %}
-                <span class="badge bg-warning text-dark">Agotado</span>
-            {% else %}
-                <span class="bg-success">Disponible</span>
-            {% endif %}
-        </td>
-        <td>
-            <a href="{{ url_for('inventory.movimientos', id=insumo.id) }}" class="btn btn-sm btn-outline-primary">Movimientos</a>
-            <a href="{{ url_for('inventory.edit', id=insumo.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
-            <form action="{{ url_for('inventory.delete', id=insumo.id) }}" method="post" onsubmit="return confirm('¿Está seguro de que desea eliminar este insumo? No se podrá deshacer esta acción si tiene movimientos o recetas asociadas.');" style="display: inline;">
-                <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-            </form>
-        </td>
-    </tr>
-    {% endfor %}
-</tbody>
-</table>
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Unidad</th>
+                <th>Costo unit.</th>
+                <th>Stock actual</th>
+                <th>Stock mín.</th>
+                <th>Estado</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for insumo in insumos %}
+            <tr>
+                <td><strong>{{ insumo.nombre }}</strong></td>
+                <td>{{ insumo.unidad_medida }}</td>
+                <td>${{ "{:,}".format(insumo.costo_unitario_cop) }}</td>
+                <td>
+                    <strong>{{ insumo.stock_actual }}</strong>
+                </td>
+                <td>{{ insumo.stock_minimo }}</td>
+                <td>
+                    {% if insumo.stock_actual <= 0 %}
+                    <span class="badge badge-stock-agotado">Agotado</span>
+                    {% elif insumo.stock_actual <= insumo.stock_minimo %}
+                    <span class="badge badge-stock-bajo">Stock bajo</span>
+                    {% else %}
+                    <span class="badge badge-stock-ok">Disponible</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="flex flex-center gap-1" style="flex-wrap: nowrap;">
+                        <a href="{{ url_for('inventory.movimientos', id=insumo.id) }}" class="btn btn-sm btn-outline">Mov.</a>
+                        <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-sm btn-outline">+</a>
+                        {% if current_user.rol == 'admin' %}
+                        <a href="{{ url_for('inventory.edit', id=insumo.id) }}" class="btn btn-sm btn-outline">Editar</a>
+                        <form action="{{ url_for('inventory.delete', id=insumo.id) }}" method="post"
+                              onsubmit="return confirm('¿Eliminar {{ insumo.nombre }}? Esta acción no se puede deshacer si tiene movimientos o recetas asociadas.');"
+                              style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% else %}
-<div class="alert alert-info">
-    No hay insumos registrados. <a href="{{ url_for('inventory.create') }}" class="alert-link">Agregar uno ahora</a>.
+<div class="card">
+    <div class="card-body empty-state">
+        <span class="empty-icon">📦</span>
+        <p>No hay insumos registrados en el inventario.</p>
+        {% if current_user.rol == 'admin' %}
+        <a href="{{ url_for('inventory.create') }}" class="btn btn-primary mt-2">Agregar insumo</a>
+        {% endif %}
+    </div>
 </div>
 {% endif %}
 {% endblock %}

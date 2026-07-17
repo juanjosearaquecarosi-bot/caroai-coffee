@@ -1,18 +1,21 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required
 from ..models import db, Mesa, Pedido, Producto, PedidoItem, TasaCambio
+from ..utils.decorators import role_required
 from datetime import datetime
 
 sales_bp = Blueprint('sales', __name__)
 
-@login_required
 @sales_bp.route('/')
+@login_required
+@role_required('admin', 'employee')
 def index():
     pedidos = Pedido.query.order_by(Pedido.fecha_hora.desc()).all()
     return render_template('sales/index.html', pedidos=pedidos)
 
-@login_required
 @sales_bp.route('/create/<int:mesa_id>', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
 def create_pedido(mesa_id):
     mesa = Mesa.query.get_or_404(mesa_id)
     if mesa.estado != 'ocupada':
@@ -23,21 +26,20 @@ def create_pedido(mesa_id):
     if open_pedido:
         flash('Ya existe un pedido abierto para esta mesa.', 'warning')
         return redirect(url_for('sales.detail', pedido_id=open_pedido.id))
-    # Create a new pedido (we'll need to get a tasa for today, but for now we can use a default)
+    # Create a new pedido
     today = datetime.utcnow().date()
     tasa = TasaCambio.query.filter_by(fecha=today).first()
     if not tasa:
-        # Create a default tasa (should be configured by the user)
         tasa = TasaCambio(
             fecha=today,
-            tasa_cop_usd=3600.0,  # default, should be configurable
-            tasa_tienda_bs_usd=4.5   # default, should be configurable
+            tasa_cop_usd=4200.0,
+            tasa_tienda_bs_usd=4.5
         )
         db.session.add(tasa)
         db.session.commit()
     pedido = Pedido(
         mesa_id=mesa.id,
-        moneda_recibida='COP',  # default, will be updated when closing
+        moneda_recibida='COP',
         monto_recibido=0,
         tasa_id=tasa.id
     )
@@ -46,15 +48,18 @@ def create_pedido(mesa_id):
     flash('Pedido creado.', 'success')
     return redirect(url_for('sales.detail', pedido_id=pedido.id))
 
-@login_required
 @sales_bp.route('/<int:pedido_id>')
+@login_required
+@role_required('admin', 'employee')
 def detail(pedido_id):
     pedido = Pedido.query.get_or_404(pedido_id)
     productos = Producto.query.order_by(Producto.nombre).all()
-    return render_template('sales/detail.html', pedido=pedido, productos=productos)
+    total_cop = sum(item.subtotal_cop for item in pedido.items)
+    return render_template('sales/detail.html', pedido=pedido, productos=productos, total_cop=total_cop)
 
-@login_required
 @sales_bp.route('/<int:pedido_id>/add_item', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
 def add_item(pedido_id):
     pedido = Pedido.query.get_or_404(pedido_id)
     if pedido.estado != 'abierto':
@@ -66,7 +71,6 @@ def add_item(pedido_id):
         flash('Datos de producto o cantidad inválidos.', 'warning')
         return redirect(url_for('sales.detail', pedido_id=pedido.id))
     producto = Producto.query.get_or_404(producto_id)
-    # Create pedido_item
     pedido_item = PedidoItem(
         pedido_id=pedido.id,
         producto_id=producto.id,
@@ -75,14 +79,13 @@ def add_item(pedido_id):
         subtotal_cop=producto.precio_venta_cop * cantidad
     )
     db.session.add(pedido_item)
-    # Update pedido monto_recibido? We'll update when closing based on moneda_recibida.
-    # For now, we just add the item.
     db.session.commit()
     flash('Item agregado al pedido.', 'success')
     return redirect(url_for('sales.detail', pedido_id=pedido.id))
 
-@login_required
 @sales_bp.route('/<int:pedido_id>/remove_item/<int:item_id>', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
 def remove_item(pedido_id, item_id):
     pedido = Pedido.query.get_or_404(pedido_id)
     if pedido.estado != 'abierto':
@@ -97,23 +100,22 @@ def remove_item(pedido_id, item_id):
     flash('Item eliminado del pedido.', 'success')
     return redirect(url_for('sales.detail', pedido_id=pedido.id))
 
-@login_required
 @sales_bp.route('/<int:pedido_id>/close', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
 def close_pedido(pedido_id):
     pedido = Pedido.query.get_or_404(pedido_id)
     if pedido.estado != 'abierto':
         flash('El pedido ya está cerrado.', 'warning')
         return redirect(url_for('sales.detail', pedido_id=pedido.id))
-    # Here we would calculate the total in the selected moneda and update monto_recibido
-    # For simplicity, we'll just set the estado to cerrado and ask the user to input the monto via a form?
-    # But the spec says we need to record the moneda_recibida and monto_recibido.
-    # We'll redirect to a form where the user selects the moneda and enters the monto received.
     return redirect(url_for('sales.close_pedido_form', pedido_id=pedido.id))
 
-@login_required
 @sales_bp.route('/<int:pedido_id>/close_form', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'employee')
 def close_pedido_form(pedido_id):
     pedido = Pedido.query.get_or_404(pedido_id)
+    total_cop = sum(item.subtotal_cop for item in pedido.items)
     if request.method == 'POST':
         moneda_recibida = request.form.get('moneda_recibida')
         monto_recibido = request.form.get('monto_recibido', type=int)
@@ -123,11 +125,10 @@ def close_pedido_form(pedido_id):
         pedido.moneda_recibida = moneda_recibida
         pedido.monto_recibido = monto_recibido
         pedido.estado = 'cerrado'
-        # Also close the associated mesa
         mesa = pedido.mesa
         mesa.estado = 'cerrada'
         mesa.fecha_cierre = datetime.utcnow()
         db.session.commit()
         flash('Pedido cerrado y mesa actualizada.', 'success')
         return redirect(url_for('tables.index'))
-    return render_template('sales/close_form.html', pedido=pedido)
+    return render_template('sales/close_form.html', pedido=pedido, total_cop=total_cop)

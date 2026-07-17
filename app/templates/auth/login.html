@@ -1,41 +1,107 @@
 {% extends "base.html" %}
+{% block title %}Iniciar Sesión · Caroai Café{% endblock %}
 
-{% block title %}Iniciar Sesión{% endblock %}
+{% block head_extra %}
+<style>
+    .login-page {
+        min-height: calc(100vh - var(--nav-height) - 4rem);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .login-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        padding: 2.5rem;
+        width: 100%;
+        max-width: 400px;
+        animation: fadeIn 0.4s ease;
+    }
+
+    .login-brand {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .login-brand-icon {
+        width: 56px;
+        height: 56px;
+        background: var(--color-accent);
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0 auto 1rem;
+    }
+
+    .login-brand h1 {
+        font-family: var(--font-display);
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--color-text-primary);
+    }
+
+    .login-brand h1 span { color: var(--color-accent); }
+
+    .login-brand p {
+        color: var(--color-text-secondary);
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    .login-divider {
+        border: none;
+        border-top: 1px solid var(--color-border-light);
+        margin: 1.5rem 0;
+    }
+
+    .login-card .form-group { margin-bottom: 1.25rem; }
+
+    .login-card .btn { width: 100%; padding: 0.75rem; font-size: 0.9375rem; }
+
+    .login-footer {
+        text-align: center;
+        margin-top: 1.5rem;
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="text-center">Iniciar Sesión</h3>
-                </div>
-                <div class="card-body">
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                      {% if messages %}
-                        {% for category, message in messages %}
-                          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                          </div>
-                        {% endfor %}
-                      {% endif %}
-                    {% endwith %}
-                    <form method="POST" action="{{ url_for('auth.login') }}">
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Correo Electrónico</label>
-                            <input type="email" class="form-control" id="email" name="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Contraseña</label>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-primary">Ingresar</button>
-                        </div>
-                    </form>
-                </div>
+<div class="login-page">
+    <div class="login-card">
+        <div class="login-brand">
+            <div class="login-brand-icon">C</div>
+            <h1>Caroai<span>Café</span></h1>
+            <p>Control de administración</p>
+        </div>
+
+        <hr class="login-divider">
+
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <div class="form-group">
+                <label for="email" class="form-label">Correo electrónico</label>
+                <input type="email" class="form-input" id="email" name="email"
+                       placeholder="usuario@ejemplo.com" required autocomplete="email" autofocus>
             </div>
+            <div class="form-group">
+                <label for="password" class="form-label">Contraseña</label>
+                <input type="password" class="form-input" id="password" name="password"
+                       placeholder="••••••••" required autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn btn-primary">Ingresar</button>
+        </form>
+
+        <div class="login-footer">
+            Caroai Café &middot; Sistema de gestión
         </div>
     </div>
 </div>

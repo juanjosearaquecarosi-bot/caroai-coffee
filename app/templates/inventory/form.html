@@ -1,59 +1,59 @@
 {% extends "base.html" %}
-{% block title %}{% if insumo %}Editar Insumo{% else %}Nuevo Insumo{% endif %} - Caroai Café{% endblock %}
+{% block title %}{{ action }} Insumo · Caroai Café{% endblock %}
+
 {% block content %}
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="mb-0">{% if insumo %}Editar{% else %}Crear{% endif %} Insumo</h4>
+<div class="page-header">
+    <div>
+        <h1>{{ action }} insumo</h1>
+        <p>{% if insumo %}Editando {{ insumo.nombre }}{% else %}Nuevo insumo para el inventario{% endif %}</p>
+    </div>
+</div>
+
+<div class="row" style="max-width: 640px;">
+    <div class="card" style="width: 100%;">
+        <div class="card-body">
+            <form method="POST">
+                <div class="form-group">
+                    <label for="nombre" class="form-label">Nombre del insumo</label>
+                    <input type="text" class="form-input" id="nombre" name="nombre"
+                           value="{{ insumo.nombre if insumo else '' }}" required placeholder="Ej: Café molido 1kg">
                 </div>
-                <div class="card-body">
-                    <form method="POST">
-                        <div class="mb-3">
-                            <label for="nombre" class="form-label">Nombre del Insumo</label>
-                            <input type="text" class="form-control" id="nombre" name="nombre" value="{{ insumo.nombre if insumo else '' }}" required maxlength="100">
-                        </div>
 
-                        <div class="mb-3">
-                            <label for="unidad_medida" class="form-label">Unidad de Medida</label>
-                            <select class="form-select" id="unidad_medida" name="unidad_medida" required>
-                                <option value="">Seleccione una unidad</option>
-                                <option value="kg" {% if insumo and insumo.unidad_medida == 'kg' %}selected{% endif %}>Kilogramo (kg)</option>
-                                <option value="g" {% if insumo and insumo.unidad_medida == 'g' %}selected{% endif %}>Gramo (g)</option>
-                                <option value="l" {% if insumo and insumo.unidad_medida == 'l' %}selected{% endif %}>Litro (l)</option>
-                                <option value="ml" {% if insumo and insumo.unidad_medida == 'ml' %}selected{% endif %}>Mililitro (ml)</option>
-                                <option value="unidad" {% if insumo and insumo.unidad_medida == 'unidad' %}selected{% endif %}>Unidad</option>
-                            </select>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="costo_unitario_cop" class="form-label">Costo Unitario (COP)</label>
-                            <input type="number" class="form-control" id="costo_unitario_cop" name="costo_unitario_cop" value="{{ insumo.costo_unitario_cop if insumo else '' }}" min="0" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="stock_actual" class="form-label">Stock Actual</label>
-                            <input type="number" class="form-control" id="stock_actual" name="stock_actual" value="{{ insumo.stock_actual if insumo else '' }}" min="0" required>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="stock_minimo" class="form-label">Stock Mínimo</label>
-                            <input type="number" class="form-control" id="stock_minimo" name="stock_minimo" value="{{ insumo.stock_minimo if insumo else '' }}" min="0" required>
-                        </div>
-
-                        <div class="d-grid gap-2">
-                            {% if insumo %}
-                                <a href="{{ url_for('inventory.index') }}" class="btn btn-outline-secondary">Cancelar</a>
-                                <button type="submit" class="btn btn-primary">Actualizar Insumo</button>
-                            {% else %}
-                                <a href="{{ url_for('inventory.index') }}" class="btn btn-outline-secondary">Cancelar</a>
-                                <button type="submit" class="btn btn-success">Crear Insumo</button>
-                            {% endif %}
-                        </div>
-                    </form>
+                <div class="form-group">
+                    <label for="unidad_medida" class="form-label">Unidad de medida</label>
+                    <select class="form-select" id="unidad_medida" name="unidad_medida" required>
+                        <option value="">— Seleccionar —</option>
+                        <option value="kg" {% if insumo and insumo.unidad_medida == 'kg' %}selected{% endif %}>Kilogramo (kg)</option>
+                        <option value="g" {% if insumo and insumo.unidad_medida == 'g' %}selected{% endif %}>Gramo (g)</option>
+                        <option value="l" {% if insumo and insumo.unidad_medida == 'l' %}selected{% endif %}>Litro (l)</option>
+                        <option value="ml" {% if insumo and insumo.unidad_medida == 'ml' %}selected{% endif %}>Mililitro (ml)</option>
+                        <option value="unidad" {% if insumo and insumo.unidad_medida == 'unidad' %}selected{% endif %}>Unidad</option>
+                    </select>
                 </div>
-            </div>
+
+                <div class="form-group">
+                    <label for="costo_unitario_cop" class="form-label">Costo unitario (COP)</label>
+                    <input type="number" class="form-input" id="costo_unitario_cop" name="costo_unitario_cop"
+                           value="{{ insumo.costo_unitario_cop if insumo else '' }}" required min="0" placeholder="0">
+                </div>
+
+                <div class="form-group">
+                    <label for="stock_actual" class="form-label">Stock actual</label>
+                    <input type="number" class="form-input" id="stock_actual" name="stock_actual"
+                           value="{{ insumo.stock_actual if insumo else '' }}" required min="0" placeholder="0">
+                </div>
+
+                <div class="form-group">
+                    <label for="stock_minimo" class="form-label">Stock mínimo</label>
+                    <input type="number" class="form-input" id="stock_minimo" name="stock_minimo"
+                           value="{{ insumo.stock_minimo if insumo else '' }}" required min="0" placeholder="0">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Guardar insumo</button>
+                    <a href="{{ url_for('inventory.index') }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
         </div>
     </div>
 </div>

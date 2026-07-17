@@ -1,33 +1,68 @@
 {% extends "base.html" %}
-{% block title %}Movimientos de {{ insumo.nombre }} - Caroai Café{% endblock %}
+{% block title %}Movimientos · {{ insumo.nombre }} · Caroai Café{% endblock %}
+
 {% block content %}
-<h1 class="mb-4">Movimientos de Inventario: {{ insumo.nombre }}</h1>
-<a href="{{ url_for('inventory.index') }}" class="btn btn-secondary mb-3">Volver al Inventario</a>
-<table class="table table-striped table-hover">
-    <thead class="table-dark">
-        <tr>
-            <th>Fecha</th>
-            <th>Tipo</th>
-            <th>Cantidad</th>
-            <th>Costo Total (COP)</th>
-            <th>Motivo</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for movimiento in movimientos %}
-        <tr>
-            <td>{{ movimiento.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
-            <td>
-                {% if movimiento.tipo == 'entrada' %}<span class="badge bg-success">Entrada</span>
-                {% elif movimiento.tipo == 'salida' %}<span class="badge bg-danger">Salida</span>
-                {% elif movimiento.tipo == 'merma' %}<span class="badge bg-warning text-dark">Merma</span>
-                {% else %}<span class="badge bg-secondary">Ajuste</span>{% endif %}
-            </td>
-            <td>{{ movimiento.cantidad }}</td>
-            <td>${{ movimiento.costo_total }}</td>
-            <td>{{ movimiento.motivo }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="page-header">
+    <div>
+        <h1>{{ insumo.nombre }}</h1>
+        <p>Movimientos de inventario · Stock actual: <strong>{{ insumo.stock_actual }} {{ insumo.unidad_medida }}</strong></p>
+    </div>
+    <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-primary">+ Nuevo movimiento</a>
+</div>
+
+<div class="mb-3">
+    <a href="{{ url_for('inventory.index') }}" class="btn btn-outline">← Volver al inventario</a>
+</div>
+
+{% if movimientos %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Cantidad</th>
+                <th>Costo total</th>
+                <th>Motivo</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for mov in movimientos %}
+            <tr>
+                <td>{{ mov.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    {% if mov.tipo == 'entrada' %}
+                    <span class="badge badge-stock-ok">● Entrada</span>
+                    {% elif mov.tipo == 'salida' %}
+                    <span class="badge badge-stock-bajo">● Salida</span>
+                    {% elif mov.tipo == 'merma' %}
+                    <span class="badge badge-stock-agotado">● Merma</span>
+                    {% else %}
+                    <span class="badge badge-ajuste">● Ajuste</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if mov.tipo == 'entrada' or mov.tipo == 'ajuste' and mov.cantidad > 0 %}
+                    <span style="color: var(--color-success); font-weight: 600;">+{{ mov.cantidad }}</span>
+                    {% else %}
+                    <span style="color: var(--color-danger); font-weight: 600;">-{{ mov.cantidad }}</span>
+                    {% endif %}
+                    {{ insumo.unidad_medida }}
+                </td>
+                <td>${{ "{:,}".format(mov.costo_total) }}</td>
+                <td>{{ mov.motivo or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body empty-state">
+        <span class="empty-icon">📊</span>
+        <p>No hay movimientos registrados para {{ insumo.nombre }}.</p>
+        <a href="{{ url_for('inventory.nuevo_movimiento', id=insumo.id) }}" class="btn btn-primary mt-2">Registrar movimiento</a>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

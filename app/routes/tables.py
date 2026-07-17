@@ -1,18 +1,21 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required
 from ..models import db, Mesa
+from ..utils.decorators import role_required
 from datetime import datetime
 
 tables_bp = Blueprint('tables', __name__)
 
 @tables_bp.route('/')
 @login_required
+@role_required('admin', 'employee')
 def index():
     mesas = Mesa.query.order_by(Mesa.numero).all()
     return render_template('tables/index.html', mesas=mesas)
 
-@login_required
 @tables_bp.route('/open/<int:mesa_id>', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
 def open_mesa(mesa_id):
     mesa = Mesa.query.get_or_404(mesa_id)
     if mesa.estado == 'libre':
@@ -24,8 +27,9 @@ def open_mesa(mesa_id):
         flash('La mesa no está disponible.', 'warning')
     return redirect(url_for('tables.index'))
 
-@login_required
 @tables_bp.route('/close/<int:mesa_id>', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
 def close_mesa(mesa_id):
     mesa = Mesa.query.get_or_404(mesa_id)
     if mesa.estado == 'ocupada':
@@ -37,8 +41,9 @@ def close_mesa(mesa_id):
         flash('La mesa no está abierta.', 'warning')
     return redirect(url_for('tables.index'))
 
-@login_required
 @tables_bp.route('/reset/<int:mesa_id>', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
 def reset_mesa(mesa_id):
     mesa = Mesa.query.get_or_404(mesa_id)
     if mesa.estado == 'cerrada':

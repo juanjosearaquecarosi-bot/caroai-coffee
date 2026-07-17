@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Cerrar Pedido #{{ pedido.id }} · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Cerrar pedido #{{ pedido.id }}</h1>
+        <p>Mesa {{ pedido.mesa.numero }} · {{ pedido.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</p>
+    </div>
+</div>
+
+<div class="row row-cols-2 mb-3">
+    <!-- Total card -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Total a cobrar</h3>
+        </div>
+        <div class="card-body" style="text-align: center; padding: 2rem 1.5rem;">
+            <div class="stat-card" style="padding: 0;">
+                <div class="stat-icon">💵</div>
+                <div class="stat-value" style="font-size: 2.5rem;">${{ "{:,}".format(total_cop) }}</div>
+                <div class="stat-label">Pesos colombianos (COP)</div>
+            </div>
+        </div>
+        <div class="card-footer" style="text-align: center; font-size: 0.8125rem; color: var(--color-text-secondary);">
+            {{ pedido.items|length }} producto{% if pedido.items|length != 1 %}s{% endif %} en el pedido
+        </div>
+    </div>
+
+    <!-- Payment form -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Registrar pago</h3>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('sales.close_pedido_form', pedido_id=pedido.id) }}">
+                <div class="form-group">
+                    <label for="moneda_recibida" class="form-label">Moneda recibida</label>
+                    <select class="form-select" id="moneda_recibida" name="moneda_recibida" required>
+                        <option value="">— Seleccionar —</option>
+                        <option value="COP">COP — Peso colombiano</option>
+                        <option value="USD">USD — Dólar estadounidense</option>
+                        <option value="Bs">Bs — Bolívar (BS/USD)</option>
+                        <option value="Binance">Binance — USDT/Binance</option>
+                        <option value="tarjeta">Tarjeta — Datáfono/NEQUI</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="monto_recibido" class="form-label">Monto recibido</label>
+                    <input type="number" class="form-input" id="monto_recibido" name="monto_recibido"
+                           placeholder="0" min="1" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+                        Confirmar y cerrar pedido
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Items summary -->
+<div class="card">
+    <div class="card-header">
+        <h3>Productos</h3>
+    </div>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Precio</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pedido.items %}
+                <tr>
+                    <td>{{ item.producto.nombre }}</td>
+                    <td>{{ item.cantidad }}</td>
+                    <td>${{ "{:,}".format(item.precio_unitario_cop) }}</td>
+                    <td><strong>${{ "{:,}".format(item.subtotal_cop) }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot style="background: var(--color-bg); font-weight: 600;">
+                <tr>
+                    <td colspan="3" style="text-align: right; padding: 0.875rem 1rem;">Total COP</td>
+                    <td style="padding: 0.875rem 1rem;">${{ "{:,}".format(total_cop) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<div class="flex gap-1 mt-2">
+    <a href="{{ url_for('sales.detail', pedido_id=pedido.id) }}" class="btn btn-secondary">Volver al pedido</a>
+</div>
+{% endblock %}

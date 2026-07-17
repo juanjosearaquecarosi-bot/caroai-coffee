@@ -1,80 +1,156 @@
 {% extends "base.html" %}
-{% block title %}Pedido {{ pedido.id }} - Caroai Café{% endblock %}
+{% block title %}Pedido #{{ pedido.id }} · Caroai Café{% endblock %}
+
 {% block content %}
-<h1 class="mb-4">Pedido #{{ pedido.id }}</h1>
-<div class="row mb-4">
-    <div class="col-md-6">
-        <p><strong>Mesa:</strong> {{ pedido.mesa.numero }}</p>
-        <p><strong>Fecha/Hora:</strong> {{ pedido.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</p>
-        <p><strong>Estado:</strong>
-            {% if pedido.estado == 'abierto' %}<span class="badge bg-success">Abierto</span>
-            {% else %}<span class="badge bg-secondary">Cerrado</span>{% endif %}
-        </p>
-        {% if pedido.estado == 'cerrado' %}
-        <p><strong>Moneda recibida:</strong> {{ pedido.moneda_recibida }}</p>
-        <p><strong>Monto recibido:</strong> {{ pedido.monto_recibido }}</p>
-        {% endif %}
+<div class="page-header">
+    <div>
+        <h1>Pedido #{{ pedido.id }}</h1>
+        <p>Mesa {{ pedido.mesa.numero }} · {{ pedido.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</p>
     </div>
-    <div class="col-md-6">
-        {% if pedido.estado == 'abierto' %}
-        <form action="{{ url_for('sales.add_item', pedido_id=pedido.id) }}" method="post" class="row g-3">
-            <div class="col-md-4">
-                <label for="productoSelect" class="form-label">Producto</label>
-                <select class="form-select" id="productoSelect" name="producto_id" required>
-                    <option value="">-- Seleccione un producto --</option>
-                    {% for producto in productos %}
-                    <option value="{{ producto.id }}">{{ producto.nombre }} (${{ producto.precio_venta_cop }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label for="cantidadInput" class="form-label">Cantidad</label>
-                <input type="number" class="form-control" id="cantidadInput" name="cantidad" min="1" value="1">
-            </div>
-            <div class="col-md-4 d-grid">
-                <button type="submit" class="btn btn-primary">Agregar Item</button>
-            </div>
-        </form>
-        {% endif %}
+    <div class="flex flex-center gap-1">
+        <span class="badge {% if pedido.estado == 'abierto' %}badge-abierto{% else %}badge-cerrado{% endif %}">
+            ● {{ pedido.estado|capitalize }}
+        </span>
     </div>
 </div>
 
-<h2>Items del Pedido</h2>
-<table class="table table-striped table-hover">
-    <thead class="table-dark">
-        <tr>
-            <th>Producto</th>
-            <th>Cantidad</th>
-            <th>Precio Unitario (COP)</th>
-            <th>Subtotal (COP)</th>
-            {% if pedido.estado == 'abierto' %}<th>Acciones</th>{% endif %}
-        </tr>
-    </thead>
-    <tbody>
-        {% for item in pedido.items %}
-        <tr>
-            <td>{{ item.producto.nombre }}</td>
-            <td>{{ item.cantidad }}</td>
-            <td>{{ item.precio_unitario_cop }}</td>
-            <td>{{ item.subtotal_cop }}</td>
-            {% if pedido.estado == 'abierto' %}
-            <td>
-                <form action="{{ url_for('sales.remove_item', item_id=item.id) }}" method="post" class="d-inline">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-                </form>
-            </td>
+<div class="row row-cols-2 mb-3">
+    <!-- Add item form -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Agregar producto</h3>
+            {% if total_cop is defined and total_cop %}
+            <span style="font-family: var(--font-display); font-size: 1.125rem; font-weight: 600;">${{ "{:,}".format(total_cop) }}</span>
             {% endif %}
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+        </div>
+        <div class="card-body">
+            {% if pedido.estado == 'abierto' %}
+            <form action="{{ url_for('sales.add_item', pedido_id=pedido.id) }}" method="post">
+                <div class="row" style="gap: 0.75rem;">
+                    <div class="flex-1">
+                        <label for="productoSelect" class="form-label">Producto</label>
+                        <select class="form-select" id="productoSelect" name="producto_id" required>
+                            <option value="">— Seleccionar —</option>
+                            {% for producto in productos %}
+                            <option value="{{ producto.id }}">{{ producto.nombre }} · ${{ "{:,}".format(producto.precio_venta_cop) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="width: 100px; flex-shrink: 0;">
+                        <label for="cantidadInput" class="form-label">Cant.</label>
+                        <input type="number" class="form-input" id="cantidadInput" name="cantidad" min="1" value="1">
+                    </div>
+                    <div style="display: flex; align-items: flex-end;">
+                        <button type="submit" class="btn btn-primary">Agregar</button>
+                    </div>
+                </div>
+            </form>
+            {% else %}
+            <p class="text-muted text-small">El pedido está cerrado. No se pueden agregar más productos.</p>
+            {% endif %}
+        </div>
+    </div>
 
-{% if pedido.estado == 'abierto' %}
-<div class="mt-4">
-    <a href="{{ url_for('sales.close_pedido_form', pedido_id=pedido.id) }}" class="btn btn-danger">Cerrar Pedido</a>
-    <a href="{{ url_for('tables.index') }}" class="btn btn-secondary">Volver a Mesas</a>
+    <!-- Order summary -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Resumen</h3>
+        </div>
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="flex flex-center" style="justify-content: space-between;">
+                <span class="text-muted text-small">Mesa</span>
+                <span style="font-weight: 600;">{{ pedido.mesa.numero }}</span>
+            </div>
+            <div class="flex flex-center" style="justify-content: space-between;">
+                <span class="text-muted text-small">Productos</span>
+                <span style="font-weight: 600;">{{ pedido.items|length }}</span>
+            </div>
+            <div class="flex flex-center" style="justify-content: space-between;">
+                <span class="text-muted text-small">Total COP</span>
+                <span style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 600;">
+                    ${{ "{:,}".format(total_cop) }}
+                </span>
+            </div>
+            {% if pedido.estado == 'cerrado' %}
+            <hr class="divider">
+            <div class="flex flex-center" style="justify-content: space-between;">
+                <span class="text-muted text-small">Moneda recibida</span>
+                <span style="font-weight: 600;">{{ pedido.moneda_recibida }}</span>
+            </div>
+            <div class="flex flex-center" style="justify-content: space-between;">
+                <span class="text-muted text-small">Monto recibido</span>
+                <span style="font-family: var(--font-display); font-weight: 600;">
+                    ${{ "{:,}".format(pedido.monto_recibido) }}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </div>
-{% else %}
-<a href="{{ url_for('tables.index') }}" class="btn btn-secondary">Volver a Mesas</a>
-{% endif %}
+
+<!-- Items table -->
+<div class="card">
+    <div class="card-header">
+        <h3>Productos del pedido</h3>
+    </div>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Precio Unit.</th>
+                    <th>Subtotal</th>
+                    {% if pedido.estado == 'abierto' %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pedido.items %}
+                <tr>
+                    <td><strong>{{ item.producto.nombre }}</strong></td>
+                    <td>{{ item.cantidad }}</td>
+                    <td>${{ "{:,}".format(item.precio_unitario_cop) }}</td>
+                    <td><strong>${{ "{:,}".format(item.subtotal_cop) }}</strong></td>
+                    {% if pedido.estado == 'abierto' %}
+                    <td>
+                        <form action="{{ url_for('sales.remove_item', pedido_id=pedido.id, item_id=item.id) }}" method="post"
+                              onsubmit="return confirm('¿Eliminar {{ item.producto.nombre }} del pedido?');">
+                            <button type="submit" class="btn btn-sm btn-danger">Quitar</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="{% if pedido.estado == 'abierto' %}5{% else %}4{% endif %}">
+                        <div class="empty-state" style="padding: 2rem 1rem;">
+                            <span class="empty-icon">📦</span>
+                            <p>No hay productos en este pedido. Agrega productos desde el formulario de arriba.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if pedido.items %}
+            <tfoot style="background: var(--color-bg); font-weight: 600;">
+                <tr>
+                    <td colspan="3" style="text-align: right; padding: 0.875rem 1rem;">Total COP</td>
+                    <td style="padding: 0.875rem 1rem;">${{ "{:,}".format(total_cop) }}</td>
+                    {% if pedido.estado == 'abierto' %}<td></td>{% endif %}
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<div class="flex flex-center gap-1 mt-3" style="flex-wrap: wrap;">
+    {% if pedido.estado == 'abierto' %}
+    <a href="{{ url_for('sales.close_pedido_form', pedido_id=pedido.id) }}" class="btn btn-primary btn-lg">
+        Cerrar pedido y cobrar
+    </a>
+    {% endif %}
+    <a href="{{ url_for('tables.index') }}" class="btn btn-secondary">Volver a mesas</a>
+    <a href="{{ url_for('sales.index') }}" class="btn btn-outline">Historial de ventas</a>
+</div>
 {% endblock %}

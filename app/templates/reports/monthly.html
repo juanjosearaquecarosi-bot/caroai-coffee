@@ -1,7 +1,132 @@
-FACTS:
-1. The template file /home/dayana/caroaiapp/app/templates/reports/monthly.html will be rendered by the monthly route in /home/dayana/caroaiapp/app/routes/reports.py.
-2. There is no existing file at that location (checked via Glob).
-3. This file is an HTML template and does not read or write data files.
-4. The user's original instruction was: "/home/dayana/Descargas/Caroai Cafe control ventas (1).xlsx" ALLI EL ARCHIVO ORIGINAL, ANALIZALO. Especificación — App de Control Caroai Café
+{% extends "base.html" %}
+{% block title %}Reporte Mensual · Caroai Café{% endblock %}
 
-Now create the file.
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Reporte mensual</h1>
+        <p>{{ mes | capitalize }}</p>
+    </div>
+    <a href="{{ url_for('reports.index') }}" class="btn btn-outline">← Diario</a>
+</div>
+
+<!-- Key metrics -->
+<div class="card-grid mb-3">
+    <div class="card stat-card">
+        <span class="stat-icon">💰</span>
+        <div class="stat-value">${{ "{:,}".format(total_vendido_cop) }}</div>
+        <div class="stat-label">Total vendido (COP)</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">🧾</span>
+        <div class="stat-value">{{ total_pedidos_mes }}</div>
+        <div class="stat-label">Pedidos cerrados</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">📊</span>
+        <div class="stat-value">{{ ventas_por_dia|length }}</div>
+        <div class="stat-label">Días con ventas</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">⭐</span>
+        <div class="stat-value">
+            {% if ventas_por_dia %}
+            ${{ "{:,}".format((ventas_por_dia.values()|list|sum / ventas_por_dia|length)|int) }}
+            {% else %}0{% endif %}
+        </div>
+        <div class="stat-label">Promedio diario</div>
+    </div>
+</div>
+
+<div class="row row-cols-2 mb-3">
+    <!-- Currency breakdown -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Ingresos por moneda</h3>
+        </div>
+        <div class="card-body" style="padding: 1.25rem 1.5rem;">
+            {% if monedas_resumen %}
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                {% for moneda, data in monedas_resumen.items() %}
+                <div>
+                    <div class="flex flex-center" style="justify-content: space-between; margin-bottom: 0.25rem;">
+                        <span style="font-weight: 600; font-size: 0.9375rem;">{{ moneda }}</span>
+                        <span style="font-family: var(--font-display); font-weight: 600; font-size: 1.125rem;">
+                            ${{ "{:,}".format(data.monto_total) }}
+                        </span>
+                    </div>
+                    <span class="text-muted text-small">{{ data.cantidad_pedidos }} pedido{% if data.cantidad_pedidos != 1 %}s{% endif %}</span>
+                    {% if not loop.last %}<hr class="divider" style="margin: 0.75rem 0;">{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 1.5rem 0;">
+                <p class="text-muted">Sin ingresos este mes.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Top products -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Productos más vendidos</h3>
+        </div>
+        <div class="card-body" style="padding: 1.25rem 1.5rem;">
+            {% if top_productos %}
+            <div style="display: flex; flex-direction: column; gap: 0.625rem;">
+                {% for nombre, cantidad in top_productos %}
+                <div class="flex flex-center" style="justify-content: space-between;">
+                    <span style="font-size: 0.9375rem;">{{ nombre }}</span>
+                    <span style="font-weight: 600;">{{ cantidad }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 1.5rem 0;">
+                <p class="text-muted">Sin ventas este mes.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Daily breakdown -->
+<div class="card">
+    <div class="card-header">
+        <h3>Ventas por día</h3>
+    </div>
+    {% if ventas_por_dia %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Día</th>
+                    <th>Total COP</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dia, total in ventas_por_dia|dictsort %}
+                <tr>
+                    <td><strong>{{ dia }}</strong></td>
+                    <td><strong>${{ "{:,}".format(total) }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot style="background: var(--color-bg); font-weight: 600;">
+                <tr>
+                    <td style="padding: 0.875rem 1rem;">Total del mes</td>
+                    <td style="padding: 0.875rem 1rem;">${{ "{:,}".format(total_vendido_cop) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body empty-state">
+        <span class="empty-icon">📅</span>
+        <p>No hay datos de ventas para este mes.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

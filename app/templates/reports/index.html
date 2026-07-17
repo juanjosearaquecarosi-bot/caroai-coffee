@@ -1,6 +1,141 @@
 {% extends "base.html" %}
-{% block title %}Reportes - Caroai Café{% endblock %}
+{% block title %}Reporte Diario · Caroai Café{% endblock %}
+
 {% block content %}
-<h1 class="mb-4">Reportes</h1>
-<p class="lead">Aquí estarán los reportes del sistema.</p>
+<div class="page-header">
+    <div>
+        <h1>Reporte diario</h1>
+        <p>{{ fecha.strftime('%A, %d de %B de %Y') | capitalize }}</p>
+    </div>
+    {% if current_user.rol == 'admin' %}
+    <a href="{{ url_for('reports.monthly') }}" class="btn btn-outline">Ver mensual →</a>
+    {% endif %}
+</div>
+
+<!-- Key metrics -->
+<div class="card-grid mb-3">
+    <div class="card stat-card">
+        <span class="stat-icon">💰</span>
+        <div class="stat-value">${{ "{:,}".format(total_vendido_cop) }}</div>
+        <div class="stat-label">Total vendido (COP)</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">🧾</span>
+        <div class="stat-value">{{ total_pedidos_hoy }}</div>
+        <div class="stat-label">Pedidos cerrados</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">🟡</span>
+        <div class="stat-value">{{ mesas_activas }}</div>
+        <div class="stat-label">Mesas ocupadas</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">🟢</span>
+        <div class="stat-value">{{ mesas_libres }}</div>
+        <div class="stat-label">Mesas libres</div>
+    </div>
+</div>
+
+<!-- Currency breakdown + Top products -->
+<div class="row row-cols-2 mb-3">
+    <!-- By currency -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Ingresos por moneda</h3>
+        </div>
+        <div class="card-body" style="padding: 1.25rem 1.5rem;">
+            {% if monedas_resumen %}
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                {% for moneda, data in monedas_resumen.items() %}
+                <div>
+                    <div class="flex flex-center" style="justify-content: space-between; margin-bottom: 0.375rem;">
+                        <span style="font-weight: 600; font-size: 0.9375rem;">{{ moneda }}</span>
+                        <span style="font-family: var(--font-display); font-weight: 600; font-size: 1.125rem;">
+                            ${{ "{:,}".format(data.monto_total) }}
+                        </span>
+                    </div>
+                    <div class="flex flex-center" style="justify-content: space-between;">
+                        <span class="text-muted text-small">{{ data.cantidad_pedidos }} pedido{% if data.cantidad_pedidos != 1 %}s{% endif %}</span>
+                        <span class="text-muted text-small"></span>
+                    </div>
+                    {% if not loop.last %}<hr class="divider" style="margin: 0.75rem 0;">{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 1.5rem 0;">
+                <p class="text-muted">No hay ingresos registrados hoy.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Top products -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Productos más vendidos</h3>
+        </div>
+        <div class="card-body" style="padding: 1.25rem 1.5rem;">
+            {% if top_productos %}
+            <div style="display: flex; flex-direction: column; gap: 0.625rem;">
+                {% for nombre, cantidad in top_productos %}
+                <div class="flex flex-center" style="justify-content: space-between;">
+                    <span style="font-size: 0.9375rem;">{{ nombre }}</span>
+                    <span style="font-weight: 600; font-size: 0.9375rem;">{{ cantidad }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state" style="padding: 1.5rem 0;">
+                <p class="text-muted">No hay ventas registradas hoy.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Today's pedidos detail -->
+<div class="card">
+    <div class="card-header">
+        <h3>Pedidos del día</h3>
+        <span class="text-muted text-small">{{ pedidos_hoy|length }} pedido{% if pedidos_hoy|length != 1 %}s{% endif %}</span>
+    </div>
+    {% if pedidos_hoy %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Mesa</th>
+                    <th>Hora</th>
+                    <th>Moneda</th>
+                    <th>Recibido</th>
+                    <th>Total COP</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pedido in pedidos_hoy %}
+                <tr>
+                    <td><strong>{{ pedido.id }}</strong></td>
+                    <td>{{ pedido.mesa.numero }}</td>
+                    <td>{{ pedido.fecha_hora.strftime('%H:%M') }}</td>
+                    <td>{{ pedido.moneda_recibida }}</td>
+                    <td><strong>${{ "{:,}".format(pedido.monto_recibido) }}</strong></td>
+                    <td>${{ "{:,}".format(pedido.items|sum(attribute='subtotal_cop')) }}</td>
+                    <td>
+                        <a href="{{ url_for('sales.detail', pedido_id=pedido.id) }}" class="btn btn-sm btn-outline">Ver</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body empty-state">
+        <span class="empty-icon">📋</span>
+        <p>No hay pedidos cerrados hoy. Cuando cierres pedidos aparecerán aquí.</p>
+    </div>
+    {% endif %}
+</div>
 {% endblock %}
