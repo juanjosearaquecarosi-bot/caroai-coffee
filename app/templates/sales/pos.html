@@ -1,466 +1,972 @@
 {% extends "base.html" %}
-{% block title %}POS · Caroai Café{% endblock %}
+{% block title %}Caja · Caroai Café{% endblock %}
 
 {% block content %}
-{% if ubicacion_selected and pedido %}
-<!-- ─── POS Activo: Operando sobre un espacio ─── -->
-<div class="pos-layout">
-    <!-- Left sidebar: Espacios (plegable) -->
-    <div class="pos-sidebar" id="posSidebar">
-        <div class="pos-sidebar-header">
-            <h3>Espacios</h3>
-            <button class="btn btn-sm btn-ghost" onclick="document.getElementById('posSidebar').classList.toggle('pos-sidebar-collapsed')" title="Colapsar">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+<style>
+/* ─── POS Layout ─── */
+.pos-root {
+    display: flex;
+    gap: 1.5rem;
+    min-height: calc(100vh - var(--nav-height) - 4rem);
+    margin: -2rem -1.5rem;
+    padding: 2rem 1.5rem;
+    background: var(--color-bg);
+}
+
+/* Products panel */
+.pos-products {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.pos-products-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.pos-products-header h2 {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+
+.pos-search-wrapper {
+    position: relative;
+    flex: 1;
+    max-width: 360px;
+    min-width: 200px;
+}
+
+.pos-search-wrapper svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    pointer-events: none;
+}
+
+.pos-search {
+    width: 100%;
+    padding: 0.625rem 1rem 0.625rem 2.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pos-search:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(184, 145, 110, 0.15);
+}
+
+.pos-search::placeholder { color: var(--color-text-muted); }
+
+/* Product categories */
+.pos-category-section {
+    margin-bottom: 1rem;
+}
+
+.pos-category-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.625rem;
+    padding: 0 0.25rem;
+}
+
+.pos-category-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border-light);
+}
+
+.pos-product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.625rem;
+}
+
+.pos-product-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 1rem 0.75rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.pos-product-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--color-accent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.pos-product-btn:hover {
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.pos-product-btn:active {
+    transform: scale(0.96);
+}
+
+.pos-product-btn.pos-product-added {
+    animation: productPop 0.35s ease;
+}
+
+@keyframes productPop {
+    0% { transform: scale(1); }
+    40% { transform: scale(0.94); }
+    70% { transform: scale(1.04); }
+    100% { transform: scale(1); }
+}
+
+.pos-product-btn .product-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+}
+
+.pos-product-btn .product-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    text-align: center;
+    line-height: 1.3;
+    position: relative;
+    z-index: 1;
+}
+
+.pos-product-btn .product-price {
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    position: relative;
+    z-index: 1;
+}
+
+/* Cart panel */
+.pos-cart {
+    width: 380px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    max-height: calc(100vh - var(--nav-height) - 4rem);
+    position: sticky;
+    top: calc(var(--nav-height) + 1rem);
+}
+
+.pos-cart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.pos-cart-header h3 {
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.pos-cart-header .cart-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pos-cart-items {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+    min-height: 120px;
+}
+
+.pos-cart-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1.25rem;
+    transition: background 0.15s ease;
+}
+
+.pos-cart-item:hover {
+    background: var(--color-surface-hover);
+}
+
+.pos-cart-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.pos-cart-item-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pos-cart-item-price {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.pos-cart-item-qty {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.pos-cart-item-qty .qty-btn {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg);
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    transition: all 0.15s ease;
+    padding: 0;
+    line-height: 1;
+}
+
+.pos-cart-item-qty .qty-btn:hover {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
+}
+
+.pos-cart-item-qty .qty-btn.qty-btn-add:hover {
+    border-color: var(--color-success);
+    color: var(--color-success);
+    background: var(--color-success-bg);
+}
+
+.pos-cart-item-subtotal {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    min-width: 80px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.pos-cart-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1.5rem;
+    color: var(--color-text-muted);
+    text-align: center;
+    gap: 0.75rem;
+}
+
+.pos-cart-empty svg {
+    opacity: 0.3;
+}
+
+.pos-cart-empty p {
+    font-size: 0.9375rem;
+    font-weight: 500;
+}
+
+/* Cart footer */
+.pos-cart-footer {
+    border-top: 1px solid var(--color-border-light);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+}
+
+.pos-cart-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.pos-cart-total-label {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.pos-cart-total-value {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.pos-charge-btn {
+    width: 100%;
+    padding: 0.875rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--color-success), #6A9A7D);
+    color: white;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.pos-charge-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(123, 168, 141, 0.35);
+}
+
+.pos-charge-btn:active {
+    transform: scale(0.98);
+}
+
+.pos-charge-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Charge modal */
+.charge-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease;
+}
+
+.charge-modal-overlay.open {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.charge-modal {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 440px;
+    padding: 2rem;
+    animation: slideUp 0.25s ease;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.charge-modal h2 {
+    font-family: var(--font-display);
+    font-size: 1.375rem;
+    margin-bottom: 0.25rem;
+}
+
+.charge-modal .modal-subtitle {
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+}
+
+.charge-modal .modal-total {
+    text-align: center;
+    padding: 1.25rem 0;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.charge-modal .modal-total-amount {
+    font-family: var(--font-display);
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.charge-modal .modal-total-label {
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    margin-top: 0.25rem;
+}
+
+.charge-modal .form-group {
+    margin-bottom: 1rem;
+}
+
+.charge-modal .form-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    margin-bottom: 0.375rem;
+    color: var(--color-text-primary);
+}
+
+.charge-modal .form-select,
+.charge-modal .form-textarea {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.charge-modal .form-select:focus,
+.charge-modal .form-textarea:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(184, 145, 110, 0.15);
+}
+
+.charge-modal .form-textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.charge-modal .form-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.charge-modal .btn-cancel {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.charge-modal .btn-cancel:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-text-muted);
+}
+
+.charge-modal .btn-confirm {
+    flex: 2;
+    padding: 0.75rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--color-success), #6A9A7D);
+    color: white;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.charge-modal .btn-confirm:hover {
+    box-shadow: 0 2px 8px rgba(123, 168, 141, 0.3);
+}
+
+/* Payment method pills */
+.payment-pills {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.payment-pill {
+    padding: 0.625rem 0.5rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    font-family: var(--font-body);
+}
+
+.payment-pill:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+
+.payment-pill.active {
+    border-color: var(--color-success);
+    background: var(--color-success-bg);
+    color: var(--color-success-text);
+}
+
+/* History button */
+.history-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: 1px solid var(--color-border);
+    transition: all 0.15s ease;
+    text-decoration: none;
+}
+
+.history-link:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-text-muted);
+    color: var(--color-text-primary);
+}
+
+/* No products state */
+.no-products-found {
+    display: none;
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--color-text-muted);
+}
+
+.no-products-found.visible {
+    display: block;
+}
+
+.no-products-found p {
+    font-size: 0.9375rem;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .pos-root {
+        flex-direction: column;
+        margin: -1.25rem -1rem;
+        padding: 1.25rem 1rem;
+        gap: 1rem;
+    }
+
+    .pos-cart {
+        width: 100%;
+        max-height: none;
+        position: static;
+    }
+
+    .pos-product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+
+    .pos-products-header h2 {
+        font-size: 1.25rem;
+    }
+
+    .pos-search-wrapper {
+        max-width: 100%;
+    }
+
+    .charge-modal {
+        max-width: 95%;
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .pos-product-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pos-cart-total-value {
+        font-size: 1.25rem;
+    }
+
+    .charge-modal .modal-total-amount {
+        font-size: 1.75rem;
+    }
+
+    .payment-pills {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+</style>
+
+<div class="pos-root">
+    <!-- ─── Products Panel ─── -->
+    <div class="pos-products">
+        <div class="pos-products-header">
+            <h2>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" stroke-linecap="round" style="vertical-align: middle; margin-right: 6px;">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                </svg>
+                Caja
+            </h2>
+            <div class="pos-search-wrapper">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text" class="pos-search" id="posSearch" placeholder="Buscar producto…" autofocus oninput="filterProducts(this.value)">
+            </div>
+            <a href="{{ url_for('sales.history') }}" class="history-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                Historial
+            </a>
+        </div>
+
+        {% set bebidas = productos|selectattr('categoria', 'equalto', 'bebida')|list %}
+        {% set comidas = productos|selectattr('categoria', 'equalto', 'comida')|list %}
+
+        {% if bebidas %}
+        <div class="pos-category-section" data-cat="bebida">
+            <div class="pos-category-title">☕ Bebidas</div>
+            <div class="pos-product-grid">
+                {% for p in bebidas %}
+                <button type="button" class="pos-product-btn" data-product-id="{{ p.id }}" data-search="{{ p.nombre|lower }}"
+                        onclick="addProduct({{ p.id }}, '{{ p.nombre|e }}', {{ p.precio_venta_cop }})">
+                    <span class="product-icon">☕</span>
+                    <span class="product-name">{{ p.nombre }}</span>
+                    <span class="product-price">${{ "{:,}".format(p.precio_venta_cop) }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if comidas %}
+        <div class="pos-category-section" data-cat="comida">
+            <div class="pos-category-title">🍰 Comidas</div>
+            <div class="pos-product-grid">
+                {% for p in comidas %}
+                <button type="button" class="pos-product-btn" data-product-id="{{ p.id }}" data-search="{{ p.nombre|lower }}"
+                        onclick="addProduct({{ p.id }}, '{{ p.nombre|e }}', {{ p.precio_venta_cop }})">
+                    <span class="product-icon">🍰</span>
+                    <span class="product-name">{{ p.nombre }}</span>
+                    <span class="product-price">${{ "{:,}".format(p.precio_venta_cop) }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="no-products-found" id="noProducts">
+            <p>🔍 No se encontraron productos</p>
+        </div>
+    </div>
+
+    <!-- ─── Cart Panel ─── -->
+    <div class="pos-cart" id="posCart">
+        <div class="pos-cart-header">
+            <h3>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="vertical-align: middle; margin-right: 4px;">
+                    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                </svg>
+                Venta actual
+            </h3>
+            {% if cart %}
+            <span class="text-muted text-xs" style="font-weight: 500;">{{ cart|sum(attribute='cantidad') }} artículos</span>
+            {% endif %}
+        </div>
+
+        <div class="pos-cart-items" id="cartItems">
+            {% if cart %}
+                {% for item in cart %}
+                <div class="pos-cart-item" data-index="{{ loop.index0 }}">
+                    <div class="pos-cart-item-info">
+                        <div class="pos-cart-item-name">{{ item.nombre }}</div>
+                        <div class="pos-cart-item-price">${{ "{:,}".format(item.precio) }}/u</div>
+                    </div>
+                    <div class="pos-cart-item-qty">
+                        <button class="qty-btn" onclick="removeProduct({{ loop.index0 }})" title="Quitar uno">−</button>
+                        <span>{{ item.cantidad }}</span>
+                        <button class="qty-btn qty-btn-add" onclick="addProduct({{ item.producto_id }}, '{{ item.nombre|e }}', {{ item.precio }})" title="Agregar uno">+</button>
+                    </div>
+                    <div class="pos-cart-item-subtotal">${{ "{:,}".format(item.subtotal) }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="pos-cart-empty">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                </svg>
+                <p>Carrito vacío</p>
+                <span class="text-xs" style="color: var(--color-text-muted);">Toca un producto para agregarlo</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="pos-cart-footer">
+            <div class="pos-cart-total">
+                <span class="pos-cart-total-label">Total COP</span>
+                <span class="pos-cart-total-value" id="cartTotal">${{ "{:,}".format(total) }}</span>
+            </div>
+            <button class="pos-charge-btn" id="chargeBtn" {% if not cart %}disabled{% endif %}
+                    onclick="document.getElementById('chargeModal').classList.add('open')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Cobrar
             </button>
         </div>
-        <div class="pos-espacios-list">
-            {% for u in ubicaciones %}
-            <a href="{{ url_for('sales.pos_ubicacion', ubicacion_id=u.id) }}"
-               class="pos-espacio-link {% if u.id == ubicacion_selected.id %}active{% endif %} {% if u.estado == 'ocupada' %}ocupada{% endif %}">
-                <span class="pos-espacio-icon">
-                    {% if u.tipo == 'mesa' %}
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M3 7h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><line x1="12" y1="11" x2="12" y2="19"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
-                    {% elif u.tipo == 'barra' %}
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M6 8H5a4 4 0 0 0 0 8h1"/><rect x="6" y="8" width="12" height="10" rx="2"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
-                    {% else %}
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
-                    {% endif %}
-                </span>
-                <span class="pos-espacio-nombre">{{ u.nombre }}</span>
-                {% set u_pedidos = u.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
-                {% set u_tiene_items = u_pedidos and u_pedidos[0].items|length > 0 %}
-                <span class="pos-espacio-estado {% if u.estado == 'libre' %}dot-success{% elif u_tiene_items %}dot-primary{% else %}dot-warning{% endif %}"></span>
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-
-    <!-- Main POS area -->
-    <div class="pos-main">
-        <!-- Top bar: Location info -->
-        <div class="pos-topbar">
-            <div class="pos-topbar-left">
-                <span class="pos-topbar-espacio">
-                    {% if ubicacion_selected.tipo == 'mesa' %}
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M3 7h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><line x1="12" y1="11" x2="12" y2="19"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
-                    {% elif ubicacion_selected.tipo == 'barra' %}
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M6 8H5a4 4 0 0 0 0 8h1"/><rect x="6" y="8" width="12" height="10" rx="2"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
-                    {% else %}
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
-                    {% endif %}
-                    <strong>{{ ubicacion_selected.nombre }}</strong>
-                </span>
-                {% if pedido %}
-                <span class="pos-topbar-pedido">Pedido #{{ pedido.id }}</span>
-                <span class="pos-topbar-tiempo">Abierto {{ pedido.fecha_hora.strftime('%H:%M') }}</span>
-                {% endif %}
-            </div>
-            <div class="pos-topbar-right">
-                <a href="{{ url_for('sales.pos_index') }}" class="btn btn-sm btn-ghost">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-                    Cambiar espacio
-                </a>
-            </div>
-        </div>
-
-        {% if pedido %}
-        <!-- ─── POS Body: Product catalog + Order ─── -->
-        <div class="pos-body">
-            <!-- Product catalog -->
-            <div class="pos-catalogo">
-                <div class="pos-catalogo-header">
-                    <h3>Productos</h3>
-                    <div class="pos-search">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        <input type="text" class="pos-search-input" id="productSearch" placeholder="Buscar producto…" oninput="filterProducts(this.value)">
-                    </div>
-                </div>
-                <style>
-                    .pos-categoria-header {
-                        grid-column: 1 / -1;
-                        display: flex;
-                        align-items: center;
-                        gap: 0.5rem;
-                        padding: 0.75rem 0 0.375rem;
-                        font-family: var(--font-display);
-                        font-size: 1rem;
-                        font-weight: 600;
-                        color: var(--color-text-secondary);
-                        border-bottom: 1px solid var(--color-border-light);
-                        margin-bottom: 0.25rem;
-                    }
-                    .pos-categoria-header:first-child { padding-top: 0; }
-                    .pos-categoria-icon { font-size: 1.125rem; }
-                    .mesa-card .badge.badge-pagado {
-                        background: var(--color-info-bg);
-                        color: var(--color-info-text);
-                    }
-                    .dot-primary { background: var(--color-accent); }
-                </style>
-                {% set bebidas = productos|selectattr('categoria', 'equalto', 'bebida')|list %}
-                {% set comidas = productos|selectattr('categoria', 'equalto', 'comida')|list %}
-                <div class="pos-catalogo-grid" id="productGrid">
-                    {% if bebidas %}
-                    <div class="pos-categoria-header" data-categoria="bebida">
-                        <span class="pos-categoria-icon">☕</span>
-                        Bebidas
-                    </div>
-                    {% for producto in bebidas %}
-                    <form action="{{ url_for('sales.quick_add', pedido_id=pedido.id, producto_id=producto.id) }}" method="post" class="product-card-form"
-                          onsubmit="return posQuickAdd(this, event)">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="cantidad" value="1">
-                        <button type="submit" class="product-card" data-search="{{ producto.nombre|lower }} {{ producto.categoria|lower }}">
-                            <span class="product-card-nombre">{{ producto.nombre }}</span>
-                            <span class="product-card-precio">${{ "{:,}".format(producto.precio_venta_cop) }}</span>
-                        </button>
-                    </form>
-                    {% endfor %}
-                    {% endif %}
-                    {% if comidas %}
-                    <div class="pos-categoria-header" data-categoria="comida">
-                        <span class="pos-categoria-icon">🍰</span>
-                        Comidas
-                    </div>
-                    {% for producto in comidas %}
-                    <form action="{{ url_for('sales.quick_add', pedido_id=pedido.id, producto_id=producto.id) }}" method="post" class="product-card-form"
-                          onsubmit="return posQuickAdd(this, event)">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="cantidad" value="1">
-                        <button type="submit" class="product-card" data-search="{{ producto.nombre|lower }} {{ producto.categoria|lower }}">
-                            <span class="product-card-nombre">{{ producto.nombre }}</span>
-                            <span class="product-card-precio">${{ "{:,}".format(producto.precio_venta_cop) }}</span>
-                        </button>
-                    </form>
-                    {% endfor %}
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Order summary panel -->
-            <div class="pos-order-panel">
-                <div class="pos-order-header">
-                    <h3>Pedido #{{ pedido.id }}</h3>
-                    <span class="badge {% if pedido.estado == 'abierto' %}badge-abierto{% else %}badge-pagado{% endif %}">
-                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
-                        {{ pedido.estado|capitalize }}
-                    </span>
-                </div>
-
-                <div class="pos-order-items" id="orderItems">
-                    {% for item in pedido.items %}
-                    {% if not item.anulado %}
-                    <div class="pos-order-item" data-item-id="{{ item.id }}">
-                        <div class="pos-order-item-info">
-                            <span class="pos-order-item-nombre">{{ item.producto.nombre }}</span>
-                            <span class="pos-order-item-precio">${{ "{:,}".format(item.precio_unitario_cop) }}/u</span>
-                        </div>
-                        <div class="pos-order-item-actions">
-                            <span class="pos-order-item-cantidad">x{{ item.cantidad }}</span>
-                            <span class="pos-order-item-subtotal">${{ "{:,}".format(item.subtotal_cop) }}</span>
-                            {% if pedido.estado == 'abierto' %}
-                            <form action="{{ url_for('sales.quick_remove', pedido_id=pedido.id, item_id=item.id) }}" method="post"
-                                  class="inline" onsubmit="return posQuickRemove(this, event)">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-ghost pos-remove-btn" title="Quitar uno">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                </button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endif %}
-                    {% else %}
-                    <div class="pos-order-empty">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                        <p>No hay productos aún</p>
-                        <span class="text-xs text-muted">Toca un producto para agregarlo</span>
-                    </div>
-                    {% endfor %}
-
-                    {% set ns = namespace(has_anulados=false) %}
-                    {% for item in pedido.items %}
-                    {% if item.anulado %}{% set ns.has_anulados = true %}{% endif %}
-                    {% endfor %}
-                    {% if ns.has_anulados %}
-                    <div class="pos-order-voided-divider">
-                        <span>Anulados</span>
-                    </div>
-                    {% for item in pedido.items %}
-                    {% if item.anulado %}
-                    <div class="pos-order-item pos-order-item-voided">
-                        <div class="pos-order-item-info">
-                            <span class="pos-order-item-nombre">{{ item.producto.nombre }}</span>
-                            <span class="pos-order-item-voided-mark">ANULADO</span>
-                        </div>
-                        <div class="pos-order-item-actions">
-                            <span class="pos-order-item-cantidad">x{{ item.cantidad }}</span>
-                            <span class="pos-order-item-subtotal">${{ "{:,}".format(item.subtotal_cop) }}</span>
-                        </div>
-                    </div>
-                    {% endif %}
-                    {% endfor %}
-                    {% endif %}
-                </div>
-
-                <div class="pos-order-total" id="orderTotal">
-                    <span>Total COP</span>
-                    <strong>${{ "{:,}".format(total_cop) }}</strong>
-                </div>
-
-                <div class="pos-order-actions">
-                    {% if pedido.estado == 'abierto' %}
-                    <a href="{{ url_for('sales.close_pedido_form', pedido_id=pedido.id) }}" class="btn btn-primary btn-lg btn-block">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        Cobrar · ${{ "{:,}".format(total_cop) }}
-                    </a>
-                    {% if current_user.rol == 'admin' %}
-                    <form action="{{ url_for('sales.cancel_pedido', pedido_id=pedido.id) }}" method="post"
-                          onsubmit="return confirm('¿Anular pedido #{{ pedido.id }}? Se liberará {{ ubicacion_selected.nombre }}.');" style="width:100%;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-danger btn-block">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                            Anular pedido
-                        </button>
-                    </form>
-                    {% endif %}
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        {% else %}
-        <!-- ─── Espacio libre: botón para abrir ─── -->
-        <div class="pos-body pos-body-center">
-            <div class="card pos-empty-card">
-                <div class="card-body" style="text-align:center; padding:3rem 2rem;">
-                    <span class="empty-icon" style="font-size:3rem; display:block; margin-bottom:1rem; opacity:0.6;">
-                        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                    </span>
-                    <h2 style="font-family:var(--font-display); margin-bottom:0.5rem;">{{ ubicacion_selected.nombre }}</h2>
-                    <p class="text-muted" style="margin-bottom:1.5rem;">Este espacio está libre. ¿Deseas abrir un pedido?</p>
-                    <form action="{{ url_for('sales.pos_open', ubicacion_id=ubicacion_selected.id) }}" method="post">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                            Abrir pedido
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 
-{% else %}
-<!-- ─── Sin espacio seleccionado: Mapa de mesas ─── -->
-<div class="page-header">
-    <div>
-        <h1>POS · Punto de Venta</h1>
-        <p>Selecciona un espacio para comenzar</p>
-    </div>
-    <div class="page-header-actions">
-        <a href="{{ url_for('sales.index') }}" class="btn btn-outline btn-sm">Historial</a>
-    </div>
-</div>
+<!-- ─── Charge Modal ─── -->
+<div class="charge-modal-overlay" id="chargeModal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="charge-modal">
+        <h2>💰 Cobrar</h2>
+        <p class="modal-subtitle">Registra el pago de esta venta</p>
 
-<!-- Stats summary -->
-<div class="card-grid mb-3">
-    <div class="card stat-card">
-        <span class="stat-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </span>
-        <div class="stat-value">{{ ubicaciones|selectattr('estado', 'equalto', 'libre')|list|length }}</div>
-        <div class="stat-label">Libres</div>
-    </div>
-    {% set ocupadas_con_items = namespace(count=0) %}
-    {% for u in ubicaciones %}
-      {% if u.estado == 'ocupada' %}
-        {% set uu_pedidos = u.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
-        {% if uu_pedidos and uu_pedidos[0].items|length > 0 %}
-          {% set ocupadas_con_items.count = ocupadas_con_items.count + 1 %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
-    <div class="card stat-card">
-        <span class="stat-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-info)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-        </span>
-        <div class="stat-value stat-value-info">{{ ocupadas_con_items.count }}</div>
-        <div class="stat-label">Por cobrar</div>
-    </div>
-    <div class="card stat-card">
-        <span class="stat-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-        </span>
-        <div class="stat-value">{{ ubicaciones|selectattr('estado', 'equalto', 'ocupada')|list|length }}</div>
-        <div class="stat-label">Ocupadas</div>
-    </div>
-    <div class="card stat-card">
-        <span class="stat-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-        </span>
-        <div class="stat-value">{{ ubicaciones|length }}</div>
-        <div class="stat-label">Total espacios</div>
-    </div>
-</div>
+        <div class="modal-total">
+            <div class="modal-total-amount" id="modalTotal">${{ "{:,}".format(total) }}</div>
+            <div class="modal-total-label">COP — Peso colombiano</div>
+        </div>
 
-<div class="mesa-grid fade-in">
-    {% for ubicacion in ubicaciones %}
-    <div class="mesa-card mesa-card-{{ ubicacion.estado }}" style="animation-delay: {{ loop.index0 * 0.04 }}s;">
-        <div class="mesa-tipo-badge">
-            {% if ubicacion.tipo == 'mesa' %}
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M3 7h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><line x1="12" y1="11" x2="12" y2="19"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
-            {% elif ubicacion.tipo == 'barra' %}
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M6 8H5a4 4 0 0 0 0 8h1"/><rect x="6" y="8" width="12" height="10" rx="2"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
-            {% else %}
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
-            {% endif %}
-        </div>
-        <div class="mesa-numero">{{ ubicacion.nombre }}</div>
-        {% set oc_pedidos = ubicacion.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
-        {% set oc_tiene_items = oc_pedidos and oc_pedidos[0].items|length > 0 %}
-        <div class="mesa-estado">
-            {% if ubicacion.estado == 'libre' %}
-            <span class="badge badge-libre"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Libre</span>
-            {% elif oc_tiene_items %}
-            <span class="badge badge-pagado"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Por cobrar</span>
-            {% else %}
-            <span class="badge badge-ocupada"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Ocupada</span>
-            {% endif %}
-        </div>
-        <div class="mesa-time">
-            {% if ubicacion.fecha_apertura and ubicacion.estado == 'ocupada' %}
-            <span class="text-muted-light">Abierta {{ ubicacion.fecha_apertura.strftime('%H:%M') }}</span>
-            {% else %}&nbsp;{% endif %}
-        </div>
-        <div class="mesa-actions">
-            <a href="{{ url_for('sales.pos_ubicacion', ubicacion_id=ubicacion.id) }}" class="btn {% if ubicacion.estado == 'libre' %}btn-success{% elif oc_tiene_items %}btn-warning{% else %}btn-primary{% endif %}">
-                {% if ubicacion.estado == 'libre' %}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Abrir
-                {% elif oc_tiene_items %}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Cobrar
-                {% else %}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-                Pedido
-                {% endif %}
-            </a>
-        </div>
+        <form method="POST" action="{{ url_for('sales.charge') }}" id="chargeForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="form-group">
+                <label class="form-label">Método de pago</label>
+                <div class="payment-pills">
+                    <button type="button" class="payment-pill active" data-value="efectivo" onclick="selectPayment(this)">💵 Efectivo</button>
+                    <button type="button" class="payment-pill" data-value="binance" onclick="selectPayment(this)"> Binance</button>
+                    <button type="button" class="payment-pill" data-value="bancolombia" onclick="selectPayment(this)">🏦 Bancolombia</button>
+                </div>
+                <input type="hidden" name="metodo_pago" id="metodoPago" value="efectivo">
+                <input type="hidden" name="moneda_pago" value="COP">
+            </div>
+
+            <div class="form-group">
+                <label for="observaciones" class="form-label">Observaciones <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                <textarea class="form-textarea" id="observaciones" name="observaciones" placeholder="Binance — $20 USD — ref: ABC123…"></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" onclick="document.getElementById('chargeModal').classList.remove('open')">Cancelar</button>
+                <button type="submit" class="btn-confirm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align: middle; margin-right: 4px;">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Confirmar pago
+                </button>
+            </div>
+        </form>
     </div>
-    {% endfor %}
 </div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
-// ─── POS: Filtro de productos ───
+// ─── CSRF token (from Jinja) ───
+var CSRF_TOKEN = '{{ csrf_token() }}';
+var ADD_URL = '{{ url_for("sales.add_item") }}';
+var REMOVE_URL_BASE = '{{ url_for("sales.remove_item", item_index=0) }}'.replace('/0', '/');
+
+// ─── Search filter ───
 function filterProducts(query) {
     query = query.toLowerCase().trim();
-    document.querySelectorAll('.product-card').forEach(function(card) {
-        var searchData = card.getAttribute('data-search') || '';
-        card.closest('.product-card-form').style.display = (!query || searchData.includes(query)) ? '' : 'none';
+    const btns = document.querySelectorAll('.pos-product-btn');
+    const sections = document.querySelectorAll('.pos-category-section');
+    let anyVisible = false;
+
+    btns.forEach(function(btn) {
+        const search = btn.getAttribute('data-search') || '';
+        const match = !query || search.includes(query);
+        btn.style.display = match ? '' : 'none';
+        if (match) anyVisible = true;
     });
+
+    sections.forEach(function(section) {
+        const vis = Array.from(section.querySelectorAll('.pos-product-btn')).some(function(b) {
+            return b.style.display !== 'none';
+        });
+        section.style.display = vis ? '' : 'none';
+    });
+
+    document.getElementById('noProducts').classList.toggle('visible', !anyVisible);
 }
 
-// ─── POS: Quick Add via AJAX ───
-function posQuickAdd(form, event) {
-    event.preventDefault();
-    var formData = new FormData(form);
-    formData.append('X-Requested-With', 'XMLHttpRequest');
-    fetch(form.action, {
+// ─── Add product via AJAX ───
+function addProduct(productId, name, price) {
+    var formData = new FormData();
+    formData.append('producto_id', productId);
+    formData.append('cantidad', 1);
+    formData.append('csrf_token', CSRF_TOKEN);
+
+    fetch(ADD_URL, {
         method: 'POST',
         body: formData,
-        headers: {'X-Requested-With': 'XMLHttpRequest'}
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.ok) {
-            renderOrderItems(data.items, data.total);
-            // Animar el botón
-            var btn = form.querySelector('.product-card');
-            btn.classList.add('product-card-added');
-            setTimeout(function() { btn.classList.remove('product-card-added'); }, 300);
+            renderCart(data.cart, data.total);
+            var btn = document.querySelector('.pos-product-btn[data-product-id="' + productId + '"]');
+            if (btn) {
+                btn.classList.remove('pos-product-added');
+                void btn.offsetWidth;
+                btn.classList.add('pos-product-added');
+            }
         }
     })
-    .catch(function(err) { console.error('Error:', err); });
-    return false;
+    .catch(function(err) {
+        console.error('Error:', err);
+        location.reload();
+    });
 }
 
-// ─── POS: Quick Remove via AJAX ───
-function posQuickRemove(form, event) {
-    event.preventDefault();
-    var formData = new FormData(form);
-    formData.append('X-Requested-With', 'XMLHttpRequest');
-    fetch(form.action, {
+// ─── Remove product via AJAX ───
+function removeProduct(index) {
+    fetch(REMOVE_URL_BASE + index, {
         method: 'POST',
-        body: formData,
-        headers: {'X-Requested-With': 'XMLHttpRequest'}
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': CSRF_TOKEN
+        }
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        if (data.ok) renderOrderItems(data.items, data.total);
+        if (data.ok) renderCart(data.cart, data.total);
     })
-    .catch(function(err) { console.error('Error:', err); });
-    return false;
+    .catch(function(err) {
+        console.error('Error:', err);
+        location.reload();
+    });
 }
 
-// ─── POS: Renderizar items del pedido ───
-function renderOrderItems(items, total) {
-    var container = document.getElementById('orderItems');
-    var totalEl = document.getElementById('orderTotal');
-    if (!container || !totalEl) return;
+// ─── Render cart ───
+function renderCart(cart, total) {
+    var container = document.getElementById('cartItems');
+    var totalEl = document.getElementById('cartTotal');
+    var chargeBtn = document.getElementById('chargeBtn');
+    var modalTotal = document.getElementById('modalTotal');
 
-    if (!items || items.length === 0) {
-        container.innerHTML = '<div class="pos-order-empty">' +
-            '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>' +
-            '<p>No hay productos aún</p><span class="text-xs text-muted">Toca un producto para agregarlo</span></div>';
-        totalEl.querySelector('strong').textContent = '$0';
-        updatePayButton(total);
+    if (!cart || cart.length === 0) {
+        container.innerHTML = '<div class="pos-cart-empty">' +
+            '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">' +
+            '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>' +
+            '<path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>' +
+            '<p>Carrito vacío</p><span class="text-xs" style="color: var(--color-text-muted);">Toca un producto para agregarlo</span></div>';
+        totalEl.textContent = '$0';
+        if (modalTotal) modalTotal.textContent = '$0';
+        chargeBtn.disabled = true;
         return;
     }
 
     var html = '';
-    for (var i = 0; i < items.length; i++) {
-        var item = items[i];
-        html += '<div class="pos-order-item" data-item-id="' + item.id + '">' +
-            '<div class="pos-order-item-info">' +
-                '<span class="pos-order-item-nombre">' + item.producto + '</span>' +
-                '<span class="pos-order-item-precio">$' + formatNumber(item.precio_unitario) + '/u</span>' +
+    for (var i = 0; i < cart.length; i++) {
+        var item = cart[i];
+        html += '<div class="pos-cart-item" data-index="' + i + '">' +
+            '<div class="pos-cart-item-info">' +
+                '<div class="pos-cart-item-name">' + escapeHtml(item.nombre) + '</div>' +
+                '<div class="pos-cart-item-price">$' + formatNum(item.precio) + '/u</div>' +
             '</div>' +
-            '<div class="pos-order-item-actions">' +
-                '<span class="pos-order-item-cantidad">x' + item.cantidad + '</span>' +
-                '<span class="pos-order-item-subtotal">$' + formatNumber(item.subtotal) + '</span>' +
-                '<form action="/sales/' + item.pedido_id + '/quick_remove/' + item.id + '" method="post" class="inline" onsubmit="return posQuickRemove(this, event)">' +
-                    '<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">' +
-                    '<button type="submit" class="btn btn-sm btn-ghost pos-remove-btn" title="Quitar uno">' +
-                        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
-                    '</button>' +
-                '</form>' +
-            '</div></div>';
+            '<div class="pos-cart-item-qty">' +
+                '<button class="qty-btn" onclick="removeProduct(' + i + ')" title="Quitar uno">−</button>' +
+                '<span>' + item.cantidad + '</span>' +
+                '<button class="qty-btn qty-btn-add" onclick="addProduct(' + item.producto_id + ',\'' + escapeJsStr(item.nombre) + '\',' + item.precio + ')" title="Agregar uno">+</button>' +
+            '</div>' +
+            '<div class="pos-cart-item-subtotal">$' + formatNum(item.subtotal) + '</div>' +
+        '</div>';
     }
-    // Nota: Los items anulados no se incluyen en la respuesta JSON
-    // porque quick_add y quick_remove solo manejan items activos de pedidos abiertos.
 
     container.innerHTML = html;
-    totalEl.querySelector('strong').textContent = '$' + formatNumber(total);
-    updatePayButton(total);
+    totalEl.textContent = '$' + formatNum(total);
+    if (modalTotal) modalTotal.textContent = '$' + formatNum(total);
+    chargeBtn.disabled = false;
 }
 
-function formatNumber(n) {
-    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+// ─── Helpers ───
+function formatNum(n) {
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-function updatePayButton(total) {
-    var payBtn = document.querySelector('.pos-order-actions .btn-primary');
-    if (payBtn) {
-        var text = payBtn.innerHTML.replace(/\$[\d,]+/, '$' + formatNumber(total));
-        payBtn.innerHTML = text;
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+function escapeJsStr(str) {
+    return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+// ─── Payment selection ───
+function selectPayment(el) {
+    document.querySelectorAll('.payment-pill').forEach(function(p) { p.classList.remove('active'); });
+    el.classList.add('active');
+    document.getElementById('metodoPago').value = el.getAttribute('data-value');
+}
+
+// ─── Close modal on Escape ───
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.getElementById('chargeModal').classList.remove('open');
     }
-}
+});
 </script>
 {% endblock %}

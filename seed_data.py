@@ -10,7 +10,7 @@ Elimina todas las tablas y las recrea con datos de prueba.
 from flask import Flask
 from app.models import (
     db, Usuario, Ubicacion, Producto, Insumo,
-    Receta, TasaCambio, Gasto,
+    TasaCambio, Gasto,
 )
 from datetime import datetime, date
 
@@ -120,36 +120,7 @@ def seed():
         print("✔  4 productos (Café Americano y Capuchino con descuenta_inventario=True)")
 
         # ────────────────────────────────────────
-        #  5. RECETAS (Fase 4)
-        # ────────────────────────────────────────
-        recetas = [
-            Receta(
-                producto_id=prod_cafe.id,
-                insumo_id=insumo_cafe.id,
-                cantidad_gramos=18.0,  # 18g de café por taza de Americano
-                descripcion='base',
-            ),
-            Receta(
-                producto_id=prod_capuchino.id,
-                insumo_id=insumo_cafe.id,
-                cantidad_gramos=18.0,  # 18g de café
-                descripcion='base',
-            ),
-            Receta(
-                producto_id=prod_capuchino.id,
-                insumo_id=insumo_leche.id,
-                cantidad_gramos=200.0,  # 200ml de leche (≈200g para descuento)
-                descripcion='leche vaporizada',
-            ),
-        ]
-        db.session.add_all(recetas)
-        db.session.commit()
-        print("✔  3 recetas:")
-        print("      Café Americano → 18g Café en grano")
-        print("      Capuchino → 18g Café en grano + 200g Leche")
-
-        # ────────────────────────────────────────
-        #  6. TASAS DE CAMBIO (Fase 4)
+        #  5. TASAS DE CAMBIO (Fase 4)
         # ────────────────────────────────────────
         tasas = [
             TasaCambio(
@@ -224,7 +195,6 @@ def seed():
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print(f"  Stock Café en grano:  {insumo_cafe.stock_actual} kg")
         print(f"  Stock Leche:          {insumo_leche.stock_actual} l")
-        print(f"  Recetas activas:      {Receta.query.count()}")
         print(f"  Tasas de cambio:      {TasaCambio.query.count()}")
         print(f"  Gastos registrados:   {Gasto.query.count()}")
         print()
@@ -233,9 +203,8 @@ def seed():
         print("  2. Login como admin@caroai.com / admin123")
         print("  3. Abrir una mesa, crear pedido con Café Americano")
         print("  4. Cobrar y verificar que se descuentan 18g de café en grano")
-        print("  5. Ir a Recetas → ver las 3 recetas creadas")
-        print("  6. Ir a Tasas → ver las 2 tasas de cambio")
-        print("  7. Ir a Reportes → Mensual → ver balance unificado estimado en USD")
+        print("  5. Ir a Tasas → ver las 2 tasas de cambio")
+        print("  6. Ir a Reportes → Mensual → ver balance unificado estimado en USD")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 

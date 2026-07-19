@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Historial · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Historial de ventas</h1>
+        <p>Todos los pedidos registrados</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{{ url_for('sales.index') }}" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nueva venta
+        </a>
+    </div>
+</div>
+
+{% if pedidos %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Fecha</th>
+                <th>Productos</th>
+                <th>Unidades</th>
+                <th>Método</th>
+                <th>Total COP</th>
+                <th class="cell-actions"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pedido in pedidos %}
+            <tr>
+                <td><strong class="mono-number">{{ pedido.id }}</strong></td>
+                <td class="text-small">{{ pedido.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    {% set names = pedido.items|map(attribute='producto.nombre')|list %}
+                    <span title="{{ names|join(', ') }}">{{ names|join(', ') | truncate(40) }}</span>
+                </td>
+                <td class="mono-number">{{ pedido.items|sum(attribute='cantidad') }}</td>
+                <td class="capitalize">
+                    <span class="badge 
+                        {% if pedido.metodo_pago == 'efectivo' %}badge-libre
+                        {% elif pedido.metodo_pago == 'binance' %}badge-info
+                        {% else %}badge-ocupada{% endif %}">
+                        {{ {'efectivo': '💵 Efectivo', 'binance': ' Binance', 'bancolombia': '🏦 Bancolombia'}.get(pedido.metodo_pago, pedido.metodo_pago) }}
+                    </span>
+                </td>
+                <td><strong class="mono-number">${{ "{:,}".format(pedido.total) }}</strong></td>
+                <td class="cell-actions">
+                    <a href="{{ url_for('sales.detail', pedido_id=pedido.id) }}" class="btn btn-sm btn-outline">Ver</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="5" style="text-align: right;">Total ventas</td>
+                <td><strong class="mono-number">${{ "{:,}".format(pedidos|sum(attribute='total')) }}</strong></td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body empty-state">
+        <span class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </span>
+        <h3>Aún no hay ventas registradas</h3>
+        <p>Registra tu primera venta desde la caja.</p>
+        <a href="{{ url_for('sales.index') }}" class="btn btn-primary mt-2">Ir a la caja</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

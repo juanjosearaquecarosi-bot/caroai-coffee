@@ -54,7 +54,6 @@ def create_app():
     from .routes.reports import reports_bp
     from .routes.auth import auth_bp
     from .routes.gastos import gastos_bp
-    from .routes.recetas import recetas_bp
     from .routes.tasas import tasas_bp
     from .routes.facturas import facturas_bp
 
@@ -64,13 +63,12 @@ def create_app():
     app.register_blueprint(reports_bp, url_prefix='/reports')
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(gastos_bp, url_prefix='/gastos')
-    app.register_blueprint(recetas_bp, url_prefix='/recetas')
     app.register_blueprint(tasas_bp, url_prefix='/tasas')
     app.register_blueprint(facturas_bp, url_prefix='/facturas')
 
     @app.route('/')
     def index():
-        return redirect(url_for('sales.pos_index'))
+        return redirect(url_for('sales.index'))
     # CLI command to create admin user
     @app.cli.command("create-admin")
     def create_admin():

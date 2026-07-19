@@ -1,201 +1,73 @@
 {% extends "base.html" %}
-{% block title %}Pedido #{{ pedido.id }} · Caroai Café{% endblock %}
+{% block title %}Venta #{{ pedido.id }} · Caroai Café{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
-        <h1>Pedido #{{ pedido.id }}</h1>
-        <p>
-            {{ pedido.ubicacion.nombre }}
-            <span class="text-muted">&middot;</span>
-            Abierto {{ pedido.fecha_hora.strftime('%d/%m/%Y %H:%M') }}
-            {%- if pedido.pagado_en %}
-            <span class="text-muted">&middot;</span>
-            Cobrado {{ pedido.pagado_en.strftime('%H:%M') }}
-            {% endif %}
-        </p>
+        <h1>Venta #{{ pedido.id }}</h1>
+        <p>{{ pedido.fecha_hora.strftime('%A %d/%m/%Y %H:%M') }}</p>
     </div>
-    <div class="flex flex-center gap-1">
-        <span class="badge {% if pedido.estado == 'abierto' %}badge-abierto{% elif pedido.estado == 'pagado' %}badge-pagado{% else %}badge-anulado{% endif %}">
-            <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
-            {{ pedido.estado|capitalize }}
-        </span>
-        {% if pedido.pagado_en %}
-        <span class="badge badge-pagado">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-            {{ pedido.pagado_en.strftime('%H:%M') }}
-        </span>
-        {% endif %}
+    <div class="page-header-actions">
+        <a href="{{ url_for('sales.history') }}" class="btn btn-outline">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Volver al historial
+        </a>
     </div>
 </div>
 
 <div class="row row-cols-2 mb-3">
-    <!-- Add item form / Payment info -->
     <div class="card">
         <div class="card-header">
-            <h3>{% if pedido.estado == 'abierto' %}Agregar producto{% else %}Resumen de pago{% endif %}</h3>
-            {% if total_cop is defined and total_cop %}
-            <span class="mono-number" style="font-family: var(--font-display); font-size: 1.125rem; font-weight: 600;">${{ "{:,}".format(total_cop) }}</span>
-            {% endif %}
+            <h3>Resumen</h3>
         </div>
         <div class="card-body">
-            {% if pedido.estado == 'abierto' %}
-            <!-- Catálogo visual de productos -->
-            <style>
-                .producto-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-                    gap: 0.625rem;
-                    margin-bottom: 1rem;
-                }
-                .producto-card {
-                    background: var(--color-bg);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    padding: 0.875rem 0.75rem;
-                    text-align: center;
-                    cursor: pointer;
-                    transition: all 0.15s ease;
-                    position: relative;
-                }
-                .producto-card:hover {
-                    border-color: var(--color-accent);
-                    box-shadow: 0 2px 8px rgba(184, 145, 110, 0.2);
-                    transform: translateY(-1px);
-                }
-                .producto-card:active {
-                    transform: scale(0.97);
-                }
-                .producto-card .cat-icon {
-                    font-size: 1.25rem;
-                    margin-bottom: 0.375rem;
-                    display: block;
-                    opacity: 0.6;
-                }
-                .producto-card .prod-nombre {
-                    font-size: 0.8125rem;
-                    font-weight: 600;
-                    color: var(--color-text-primary);
-                    line-height: 1.3;
-                    margin-bottom: 0.25rem;
-                }
-                .producto-card .prod-precio {
-                    font-size: 0.875rem;
-                    font-family: var(--font-display);
-                    color: var(--color-accent);
-                    font-weight: 600;
-                }
-                .producto-card .prod-badge {
-                    position: absolute;
-                    top: 4px;
-                    right: 4px;
-                    font-size: 0.625rem;
-                    text-transform: uppercase;
-                    letter-spacing: 0.04em;
-                    padding: 1px 5px;
-                    border-radius: 4px;
-                    font-weight: 600;
-                }
-                .producto-card .prod-badge.bebida {
-                    background: var(--color-info-bg);
-                    color: var(--color-info-text);
-                }
-                .producto-card .prod-badge.comida {
-                    background: var(--color-warning-bg);
-                    color: var(--color-warning-text);
-                }
-                .custom-add-form {
-                    display: flex;
-                    gap: 0.625rem;
-                    align-items: flex-end;
-                    padding-top: 0.75rem;
-                    border-top: 1px solid var(--color-border-light);
-                }
-                .custom-add-form .form-group-mini {
-                    flex: 1;
-                    min-width: 0;
-                }
-                .custom-add-form .form-group-mini select {
-                    width: 100%;
-                }
-                .custom-add-form .qty-input {
-                    width: 80px;
-                    flex-shrink: 0;
-                }
-                @media (max-width: 480px) {
-                    .producto-grid {
-                        grid-template-columns: repeat(2, 1fr);
-                        gap: 0.5rem;
-                    }
-                    .producto-card {
-                        padding: 0.75rem 0.5rem;
-                    }
-                }
-                .producto-form { display: contents; }
-            </style>
-
-            {% set bebidas = productos|selectattr('categoria', 'equalto', 'bebida')|list %}
-            {% set comidas = productos|selectattr('categoria', 'equalto', 'comida')|list %}
-
-            <div class="producto-grid">
-                {% for producto in bebidas %}
-                <form action="{{ url_for('sales.add_item', pedido_id=pedido.id) }}" method="post" class="producto-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="producto_id" value="{{ producto.id }}">
-                    <input type="hidden" name="cantidad" value="1">
-                    <button type="submit" class="producto-card" title="Agregar {{ producto.nombre }}">
-                        <span class="cat-icon">☕</span>
-                        <span class="prod-badge bebida">bebida</span>
-                        <div class="prod-nombre">{{ producto.nombre }}</div>
-                        <div class="prod-precio">${{ "{:,}".format(producto.precio_venta_cop) }}</div>
-                    </button>
-                </form>
-                {% endfor %}
-                {% for producto in comidas %}
-                <form action="{{ url_for('sales.add_item', pedido_id=pedido.id) }}" method="post" class="producto-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="producto_id" value="{{ producto.id }}">
-                    <input type="hidden" name="cantidad" value="1">
-                    <button type="submit" class="producto-card" title="Agregar {{ producto.nombre }}">
-                        <span class="cat-icon">🍰</span>
-                        <span class="prod-badge comida">comida</span>
-                        <div class="prod-nombre">{{ producto.nombre }}</div>
-                        <div class="prod-precio">${{ "{:,}".format(producto.precio_venta_cop) }}</div>
-                    </button>
-                </form>
-                {% endfor %}
-            </div>
-
-            <!-- Forma alternativa: selector + cantidad personalizada -->
-            <form action="{{ url_for('sales.add_item', pedido_id=pedido.id) }}" method="post" class="custom-add-form">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <div class="form-group-mini">
-                    <label for="productoSelect" class="form-label" style="font-size:0.75rem;">Producto</label>
-                    <select class="form-select" id="productoSelect" name="producto_id" style="font-size:0.8125rem; padding:0.5rem 0.75rem;">
-                        <option value="">— Otro producto —</option>
-                        {% for producto in productos %}
-                        <option value="{{ producto.id }}">{{ producto.nombre }} · ${{ "{:,}".format(producto.precio_venta_cop) }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="qty-input">
-                    <label for="cantidadInput" class="form-label" style="font-size:0.75rem;">Cant.</label>
-                    <input type="number" class="form-input" id="cantidadInput" name="cantidad" min="1" value="1" style="font-size:0.8125rem; padding:0.5rem 0.75rem;">
-                </div>
-                <button type="submit" class="btn btn-sm btn-primary" style="white-space: nowrap;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Agregar
-                </button>
-            </form>
-            {% else %}
             <div class="info-list">
                 <div class="info-row">
-                    <span class="info-label">Moneda de pago</span>
-                    <span class="info-value">{{ pedido.moneda_pago or '—' }}</span>
+                    <span class="info-label">Estado</span>
+                    <span class="info-value">
+                        <span class="badge badge-pagado">
+                            <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                            Pagado
+                        </span>
+                    </span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Método de pago</span>
-                    <span class="info-value capitalize">{{ pedido.metodo_pago or '—' }}</span>
+                    <span class="info-label">Productos</span>
+                    <span class="info-value">{{ items|length }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Unidades</span>
+                    <span class="info-value">{{ items|sum(attribute='cantidad') }}</span>
+                </div>
+                <hr class="divider" style="margin: 0.5rem 0;">
+                <div class="info-row">
+                    <span class="info-label" style="font-size: 0.9375rem;">Total COP</span>
+                    <span class="info-value" style="font-family: var(--font-display); font-size: 1.25rem;">${{ "{:,}".format(pedido.total) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Pago</h3>
+        </div>
+        <div class="card-body">
+            <div class="info-list">
+                <div class="info-row">
+                    <span class="info-label">Moneda</span>
+                    <span class="info-value">{{ pedido.moneda_pago or 'COP' }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Método</span>
+                    <span class="info-value capitalize">
+                        <span class="badge 
+                            {% if pedido.metodo_pago == 'efectivo' %}badge-libre
+                            {% elif pedido.metodo_pago == 'binance' %}badge-info
+                            {% else %}badge-ocupada{% endif %}">
+                            {{ {'efectivo': '💵 Efectivo', 'binance': ' Binance', 'bancolombia': '🏦 Bancolombia'}.get(pedido.metodo_pago, pedido.metodo_pago) }}
+                        </span>
+                    </span>
                 </div>
                 {% if pedido.observaciones %}
                 <hr class="divider" style="margin: 0.25rem 0;">
@@ -204,54 +76,20 @@
                     <p class="mt-1 text-small" style="color: var(--color-text-primary);">{{ pedido.observaciones }}</p>
                 </div>
                 {% endif %}
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Order summary -->
-    <div class="card">
-        <div class="card-header">
-            <h3>Resumen</h3>
-        </div>
-        <div class="card-body">
-            <div class="info-list">
+                <hr class="divider" style="margin: 0.25rem 0;">
                 <div class="info-row">
-                    <span class="info-label">Mesa</span>
-                    <span class="info-value">{{ pedido.ubicacion.nombre }}</span>
+                    <span class="info-label">Pagado el</span>
+                    <span class="info-value text-small">{{ pedido.pagado_en.strftime('%d/%m/%Y %H:%M') }}</span>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Productos</span>
-                    <span class="info-value">{{ pedido.items|length }}</span>
-                </div>
-                <hr class="divider" style="margin: 0.5rem 0;">
-                <div class="info-row">
-                    <span class="info-label" style="font-size: 0.9375rem;">Total COP</span>
-                    <span class="info-value" style="font-family: var(--font-display); font-size: 1.25rem;">${{ "{:,}".format(total_cop) }}</span>
-                </div>
-                {% if pedido.estado == 'pagado' %}
-                <hr class="divider" style="margin: 0.5rem 0;">
-                <div class="info-row">
-                    <span class="info-label">Moneda</span>
-                    <span class="info-value">{{ pedido.moneda_pago }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Método</span>
-                    <span class="info-value capitalize">{{ pedido.metodo_pago }}</span>
-                </div>
-                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Items table -->
 <div class="card">
     <div class="card-header">
-        <h3>Productos del pedido</h3>
-        {% if pedido.items %}
-        <span class="text-muted text-small">{{ pedido.items|sum(attribute='cantidad') }} unidades</span>
-        {% endif %}
+        <h3>Productos vendidos</h3>
+        <span class="text-muted text-small">{{ items|sum(attribute='cantidad') }} unidades</span>
     </div>
     <div class="table-wrapper" style="border: none; border-radius: 0;">
         <table>
@@ -261,75 +99,36 @@
                     <th>Cantidad</th>
                     <th>Precio Unit.</th>
                     <th>Subtotal</th>
-                    {% if pedido.estado == 'abierto' %}<th class="cell-actions"></th>{% endif %}
                 </tr>
             </thead>
             <tbody>
-                {% for item in pedido.items %}
+                {% for item in items %}
                 <tr>
                     <td><strong>{{ item.producto.nombre }}</strong></td>
                     <td class="mono-number">{{ item.cantidad }}</td>
                     <td class="mono-number">${{ "{:,}".format(item.precio_unitario_cop) }}</td>
                     <td><strong class="mono-number">${{ "{:,}".format(item.subtotal_cop) }}</strong></td>
-                    {% if pedido.estado == 'abierto' %}
-                    <td class="cell-actions">
-                        <form action="{{ url_for('sales.remove_item', pedido_id=pedido.id, item_id=item.id) }}" method="post"
-                              onsubmit="return confirm('¿Quitar {{ item.producto.nombre }} del pedido?');" style="display: inline;">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="btn btn-sm btn-ghost" title="Quitar producto" style="color: var(--color-danger);">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                            </button>
-                        </form>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="{% if pedido.estado == 'abierto' %}5{% else %}4{% endif %}">
-                        <div class="empty-state" style="padding: 2rem 1rem;">
-                            <span class="empty-icon">
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                            </span>
-                            <p>No hay productos en este pedido.</p>
-                        </div>
-                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
-            {% if pedido.items %}
             <tfoot>
                 <tr>
                     <td colspan="3" style="text-align: right;">Total COP</td>
-                    <td class="mono-number">${{ "{:,}".format(total_cop) }}</td>
-                    {% if pedido.estado == 'abierto' %}<td></td>{% endif %}
+                    <td class="mono-number">${{ "{:,}".format(pedido.total) }}</td>
                 </tr>
             </tfoot>
-            {% endif %}
         </table>
     </div>
 </div>
 
-<div class="flex flex-center gap-1 mt-3 flex-wrap">
-    {% if pedido.estado == 'abierto' %}
-    <a href="{{ url_for('sales.close_pedido_form', pedido_id=pedido.id) }}" class="btn btn-primary btn-lg">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        Cobrar y cerrar pedido
-    </a>
-    {% if current_user.rol == 'admin' %}
-    <form action="{{ url_for('sales.cancel_pedido', pedido_id=pedido.id) }}" method="post"
-          onsubmit="return confirm('¿Anular pedido #{{ pedido.id }}? Se liberará {{ pedido.ubicacion.nombre }} y los productos se descartarán del reporte.');">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-danger">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            Anular pedido
-        </button>
-    </form>
-    {% endif %}
-    {% endif %}
-    <a href="{{ url_for('tables.index') }}" class="btn btn-secondary">
+<div class="flex gap-1 mt-2">
+    <a href="{{ url_for('sales.history') }}" class="btn btn-secondary">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-        Volver a mesas
+        Volver al historial
     </a>
-    <a href="{{ url_for('sales.index') }}" class="btn btn-outline">Historial de ventas</a>
+    <a href="{{ url_for('sales.index') }}" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nueva venta
+    </a>
 </div>
 {% endblock %}
