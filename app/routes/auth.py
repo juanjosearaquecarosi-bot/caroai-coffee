@@ -8,7 +8,7 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('tables.index'))
+        return redirect(url_for('pos.index'))
 
     if request.method == 'POST':
         email = request.form.get('email')
@@ -24,7 +24,7 @@ def login():
             login_user(user)
             flash('Inicio de sesión exitoso.', 'success')
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('tables.index'))
+            return redirect(next_page or url_for('pos.index'))
         else:
             flash('Correo electrónico o contraseña inválidos.', 'danger')
 
