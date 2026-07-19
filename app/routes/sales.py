@@ -48,7 +48,7 @@ def _get_caja_id():
 @role_required('admin', 'employee')
 def index():
     """POS cash-register main page."""
-    productos = Producto.query.order_by(Producto.categoria, Producto.nombre).all()
+    productos = Producto.query.order_by(Producto.tipo, Producto.nombre).all()
     cart = _cart()
     total = _cart_total(cart)
     return render_template('sales/pos.html', productos=productos, cart=cart, total=total)
@@ -159,7 +159,7 @@ def charge():
     now = datetime.utcnow()
 
     pedido = Pedido(
-        ubicacion_id=caja_id,
+        mesa_id=caja_id,
         total=total,
         estado='pagado',
         moneda_pago=moneda_pago,

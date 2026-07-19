@@ -16,7 +16,7 @@ def role_required(*roles):
                 return redirect(url_for('auth.login'))
             if current_user.rol not in roles:
                 flash('No tiene permisos para acceder a esta sección.', 'error')
-                return redirect(url_for('tables.index'))
+                return redirect(url_for('pos.index'))
             return f(*args, **kwargs)
         return decorated_function
     return decorator
