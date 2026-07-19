@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, session, abort
 from flask_login import login_required
-from ..models import db, Producto, Pedido, PedidoItem, Ubicacion
+from ..models import db, Producto, Pedido, PedidoItem, Mesa
 from ..utils.decorators import role_required
 from datetime import datetime
 
@@ -31,9 +31,9 @@ def _cart_total(cart):
 
 def _get_caja_id():
     """Return the id of the default 'Caja' location, creating it if missing."""
-    caja = Ubicacion.query.filter_by(nombre='Caja', tipo='barra').first()
+    caja = Mesa.query.filter_by(nombre='Caja').first()
     if not caja:
-        caja = Ubicacion(nombre='Caja', tipo='barra', estado='libre')
+        caja = Mesa(nombre='Caja')
         db.session.add(caja)
         db.session.commit()
     return caja.id

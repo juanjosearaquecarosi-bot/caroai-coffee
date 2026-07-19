@@ -32,52 +32,47 @@ class Usuario(UserMixin, db.Model):
 
 
 # ──────────────────────────────────────────────
-#  UBICACIÓN (reemplaza Mesa)
-#  Una mesa, barra o puff. Todas se tratan igual:
-#  "1 ubicación = 1 única cuenta abierta".
+#  MESA — reemplaza a Ubicacion
+#  Mesas, barra. Cada mesa tiene un pedido activo.
 # ──────────────────────────────────────────────
-class Ubicacion(db.Model):
-    __tablename__ = 'ubicaciones'
+class Mesa(db.Model):
+    __tablename__ = 'mesas'
 
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(50), nullable=False)          # "Mesa 1", "Barra", "Puff 1"
-    tipo = db.Column(db.String(20), nullable=False)            # mesa / barra / puff
+    nombre = db.Column(db.String(50), nullable=False)          # "Mesa 1", "Barra"
     estado = db.Column(db.String(20), nullable=False, default='libre')  # libre / ocupada
     fecha_apertura = db.Column(db.DateTime, nullable=True)
 
-    # NOTA: La regla "1 ubicación = 1 sola cuenta"
-    # se debe forzar en la capa de negocio (routes) al crear pedidos.
-
-    # Relación con pedidos
-    pedidos = db.relationship('Pedido', back_populates='ubicacion', cascade='all, delete-orphan')
+    pedidos = db.relationship('Pedido', back_populates='mesa', cascade='all, delete-orphan')
 
     def __repr__(self):
-        return f'<Ubicacion {self.nombre} ({self.tipo}) — {self.estado}>'
+        return f'<Mesa {self.nombre} — {self.estado}>'
 
 
 # ──────────────────────────────────────────────
-#  PRODUCTO
-#  Cada producto sabe si debe descontar inventario
-#  (refrescos y porciones sí; tazas de café no).
+#  PRODUCTO — catálogo del café
+#  Almacena precios en COP, USD y Bs según el Excel.
 # ──────────────────────────────────────────────
 class Producto(db.Model):
     __tablename__ = 'productos'
 
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
-    categoria = db.Column(db.String(20), nullable=False)       # bebida / comida
-    precio_venta_cop = db.Column(db.Integer, nullable=False)    # precio final en COP
-    descuenta_inventario = db.Column(db.Boolean, nullable=False, default=False)
+    tipo = db.Column(db.String(20), nullable=False, default='bebida')  # bebida / comida / grano / cerveza
+    precio_cop = db.Column(db.Integer, nullable=False, default=0)
+    precio_usd = db.Column(db.Float, nullable=True)
+    precio_bs = db.Column(db.Float, nullable=True)
 
-    # Vínculo directo con inventario (solo si descuenta_inventario=True)
+    # Compatibilidad temporal con módulos legacy
+    precio_venta_cop = db.Column(db.Integer, nullable=False, default=0)
+    descuenta_inventario = db.Column(db.Boolean, nullable=False, default=False)
     insumo_id = db.Column(db.Integer, db.ForeignKey('insumos.id'), nullable=True)
     insumo = db.relationship('Insumo', foreign_keys=[insumo_id])
 
-    # Relación con items del pedido
     items = db.relationship('PedidoItem', back_populates='producto')
 
     def __repr__(self):
-        return f'<Producto {self.nombre} — ${self.precio_venta_cop:,}>'
+        return f'<Producto {self.nombre} — ${self.precio_cop:,}>'
 
 
 # ──────────────────────────────────────────────
@@ -98,19 +93,19 @@ class Pedido(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    ubicacion_id = db.Column(db.Integer, db.ForeignKey('ubicaciones.id'), nullable=False)
-    fecha_hora = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # creación
-    pagado_en = db.Column(db.DateTime, nullable=True)                              # momento del cobro
-    estado = db.Column(db.String(20), nullable=False, default='abierto')  # abierto / pagado / anulado
-    total = db.Column(db.Integer, nullable=False, default=0)              # total en COP
+    mesa_id = db.Column(db.Integer, db.ForeignKey('mesas.id'), nullable=False)
+    fecha_hora = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    pagado_en = db.Column(db.DateTime, nullable=True)
+    estado = db.Column(db.String(20), nullable=False, default='abierto')  # abierto / pagado / pendiente / anulado
+    total = db.Column(db.Integer, nullable=False, default=0)
 
     # Información de pago
     moneda_pago = db.Column(db.String(10), nullable=True)     # VES / COP / USD
     metodo_pago = db.Column(db.String(20), nullable=True)     # efectivo / binance / bancolombia
-    observaciones = db.Column(db.String(300), nullable=True)  # detalle pago digital
+    observaciones = db.Column(db.String(300), nullable=True)
 
     # Relaciones
-    ubicacion = db.relationship('Ubicacion', back_populates='pedidos')
+    mesa = db.relationship('Mesa', back_populates='pedidos')
     items = db.relationship('PedidoItem', back_populates='pedido', cascade='all, delete-orphan')
 
     def __repr__(self):

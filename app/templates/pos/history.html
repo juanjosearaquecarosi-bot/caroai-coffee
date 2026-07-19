@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Historial · POS · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Historial de ventas</h1>
+        <p>Todos los pedidos registrados</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{{ url_for('pos.index') }}" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nueva venta
+        </a>
+    </div>
+</div>
+
+{% if pedidos %}
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Mesa</th>
+                <th>Fecha</th>
+                <th>Estado</th>
+                <th>Productos</th>
+                <th>Método</th>
+                <th>Total COP</th>
+                <th class="cell-actions"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in pedidos %}
+            <tr>
+                <td><strong class="mono-number">{{ p.id }}</strong></td>
+                <td>{{ p.mesa.nombre }}</td>
+                <td class="text-small">{{ p.fecha_hora.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    {% if p.estado == 'pagado' %}
+                    <span class="badge badge-pagado"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Pagado</span>
+                    {% elif p.estado == 'pendiente' %}
+                    <span class="badge badge-ocupada"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Pendiente</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% set names = p.items|map(attribute='producto.nombre')|list %}
+                    <span title="{{ names|join(', ') }}">{{ names|join(', ') | truncate(35) }}</span>
+                </td>
+                <td class="capitalize">
+                    {% if p.metodo_pago %}
+                    <span class="badge {% if p.metodo_pago=='efectivo' %}badge-libre{% elif p.metodo_pago=='binance' %}badge-info{% else %}badge-ocupada{% endif %}">
+                        {{ {'efectivo':'💵 Efectivo','binance':' Binance','bancolombia':'🏦 Bancolombia'}.get(p.metodo_pago, p.metodo_pago) }}
+                    </span>
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td><strong class="mono-number">${{ "{:,}".format(p.total) }}</strong></td>
+                <td class="cell-actions">
+                    <a href="{{ url_for('pos.detail', pedido_id=p.id) }}" class="btn btn-sm btn-outline">Ver</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="6" style="text-align:right;">Total</td>
+                <td><strong class="mono-number">${{ "{:,}".format(pedidos|sum(attribute='total')) }}</strong></td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+{% else %}
+<div class="card"><div class="card-body empty-state">
+    <span class="empty-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+    <h3>Aún no hay ventas</h3>
+    <p>Abre una mesa y registra tu primera venta.</p>
+    <a href="{{ url_for('pos.index') }}" class="btn btn-primary mt-2">Ir al POS</a>
+</div></div>
+{% endif %}
+{% endblock %}

@@ -4,23 +4,21 @@ excel_import.py  —  Importa productos desde el Excel 'Caroai Cafe control vent
 Uso:  python -m app.utils.excel_import
 
 Lee la hoja 'Precios' del Excel y extrae:
-- Bebidas: nombre + precio en COP (columna 2)
-- Comidas: nombre + precio en COP (columna 7)
+- Bebidas: nombre + precio COP + USD + Bs (columnas A-D)
+- Comidas: nombre + precio COP + USD + Bs (columnas E-H)
 
 Luego inserta o actualiza los productos en la base de datos.
 """
 
-import os, sys
+import os
 import openpyxl
 from app.models import db, Producto
 from app import create_app
 
-# ── Ruta del Excel dentro del proyecto ──
 EXCEL_FILENAME = 'Caroai Cafe control ventas (1).xlsx'
 
 
 def find_excel():
-    """Busca el Excel en el directorio del proyecto o sus padres."""
     start = os.path.dirname(os.path.abspath(__file__))
     for _ in range(5):
         candidate = os.path.join(start, EXCEL_FILENAME)
@@ -32,168 +30,161 @@ def find_excel():
 
 def parse_excel(excel_path):
     """
-    Lee la hoja 'Precios' y extrae productos con nombre, categoría y precio.
-    
-    Estructura esperada:
-      - Filas 1-2: encabezados / parámetros
-      - Fila 3: 'Bebidas' en col A, 'Comida' en col F (o cerca)
-      - Filas 4+: productos, con nombre en col A/F, precio COP en col B/G
-    
-    Retorna lista de dicts: {nombre, categoria, precio_venta_cop}
+    Lee la hoja 'Precios' y extrae productos con nombre, tipo y precios.
+
+    Estructura:
+      Fila 1: Tasa BCV
+      Fila 2: Cambio TRM
+      Fila 3: Bebidas | Pesos | Dolares | Precio Bs | Comida | Pesos | Dolares | Precio Bs
+      Filas 4+: datos
+
+    Columnas bebidas: A=nombre, B=COP, C=USD, D=Bs
+    Columnas comidas: E=nombre, F=COP, G=USD, H=Bs
     """
     wb = openpyxl.load_workbook(excel_path, data_only=True)
-    
+
     productos = []
-    
-    # Intentar hoja 'Precios' primero
     sheet_name = 'Precios' if 'Precios' in wb.sheetnames else wb.sheetnames[0]
     ws = wb[sheet_name]
-    
-    # Detectar dónde empiezan las secciones Bebidas y Comida
-    # Buscar palabras clave en las primeras 10 filas
-    bebidas_row = None
-    comida_row = None
-    bebidas_col = 1      # col A: nombres de bebidas
-    comida_col = 5       # col E: nombres de comida
-    precio_bebidas_col = 2   # col B: precio COP para bebidas
-    precio_comida_col = 6    # col F: precio COP para comida
-    
-    for row_idx in range(1, min(ws.max_row + 1, 20)):
-        row_vals = [ws.cell(row=row_idx, column=c).value for c in range(1, ws.max_column + 1)]
-        for c, v in enumerate(row_vals, 1):
-            if v is not None:
-                sv = str(v).strip().lower()
-                if 'bebida' in sv:
-                    bebidas_row = row_idx
-                    bebidas_col = c
-                if 'comida' in sv or sv == 'comida':
-                    comida_row = row_idx
-                    comida_col = c
-    
-    # Si no encontramos por palabras clave, asumir estructura por defecto
-    if bebidas_row is None:
-        bebidas_row = 4  # asumir que los datos empiezan en fila 4
-    if comida_row is None:
-        comida_row = 4
-    
-    # Leer bebidas: desde bebidas_row hasta encontrar fila vacía o 'Comida'
-    for row_idx in range(bebidas_row, ws.max_row + 1):
-        nombre = ws.cell(row=row_idx, column=bebidas_col).value
-        precio = ws.cell(row=row_idx, column=precio_bebidas_col).value
-        
-        if nombre is None and precio is None:
-            continue  # fila vacía
-        
+
+    # Leer bebidas (cols A-D)
+    for row_idx in range(4, ws.max_row + 1):
+        nombre = ws.cell(row=row_idx, column=1).value
+        precio_cop = ws.cell(row=row_idx, column=2).value
+        precio_usd = ws.cell(row=row_idx, column=3).value
+        precio_bs = ws.cell(row=row_idx, column=4).value
+
         nombre_str = str(nombre).strip() if nombre else ''
-        
-        # Detectar fin de sección
-        if not nombre_str or 'comida' in nombre_str.lower():
+
+        # Detectar fin de sección o saltar encabezados
+        if not nombre_str or len(nombre_str) < 2:
+            # Podría ser comienzo de comidas, salir
             continue
-        
-        # Saltar encabezados/parametros
-        if any(kw in nombre_str.lower() for kw in ['tasa', 'cambio', 'dolar', 'precio', 'bebidas', 'producto']):
+        if any(kw in nombre_str.lower() for kw in ['tasa', 'cambio', 'dolar', 'precio', 'bebidas', 'comida', 'producto']):
             continue
-        if len(nombre_str) < 2:
-            continue
-            
-        precio_val = None
-        if precio is not None:
-            try:
-                precio_val = int(float(str(precio).replace(',', '').replace('$', '').strip()))
-            except (ValueError, TypeError):
-                pass
-        
-        if precio_val and precio_val > 0:
+
+        cop_val = _parse_precio(precio_cop)
+        usd_val = _parse_precio_float(precio_usd)
+        bs_val = _parse_precio_float(precio_bs)
+
+        if cop_val and cop_val > 0:
+            tipo = 'cerveza' if any(kw in nombre_str.lower() for kw in ['cerveza', 'malta']) else 'grano' if any(kw in nombre_str.lower() for kw in ['kilo', 'gramo', 'kg', 'origen']) else 'bebida'
             productos.append({
                 'nombre': nombre_str,
-                'categoria': 'bebida',
-                'precio_venta_cop': precio_val,
+                'tipo': tipo,
+                'precio_cop': cop_val,
+                'precio_usd': usd_val if usd_val and usd_val > 0 else None,
+                'precio_bs': bs_val if bs_val and bs_val > 0 else None,
             })
-    
-    # Leer comidas desde comida_col
-    for row_idx in range(comida_row, ws.max_row + 1):
-        nombre = ws.cell(row=row_idx, column=comida_col).value
-        precio = ws.cell(row=row_idx, column=precio_comida_col).value
-        
-        if nombre is None and precio is None:
-            continue
-        
+
+    # Leer comidas (cols E-H)
+    for row_idx in range(4, ws.max_row + 1):
+        nombre = ws.cell(row=row_idx, column=5).value
+        precio_cop = ws.cell(row=row_idx, column=6).value
+        precio_usd = ws.cell(row=row_idx, column=7).value
+        precio_bs = ws.cell(row=row_idx, column=8).value
+
         nombre_str = str(nombre).strip() if nombre else ''
-        
         if not nombre_str or len(nombre_str) < 2:
             continue
         if any(kw in nombre_str.lower() for kw in ['tasa', 'cambio', 'dolar', 'comida', 'producto']):
             continue
-            
-        precio_val = None
-        if precio is not None:
-            try:
-                precio_val = int(float(str(precio).replace(',', '').replace('$', '').strip()))
-            except (ValueError, TypeError):
-                pass
-        
-        if precio_val and precio_val > 0:
+
+        cop_val = _parse_precio(precio_cop)
+        usd_val = _parse_precio_float(precio_usd)
+        bs_val = _parse_precio_float(precio_bs)
+
+        if cop_val and cop_val > 0:
             productos.append({
                 'nombre': nombre_str,
-                'categoria': 'comida',
-                'precio_venta_cop': precio_val,
+                'tipo': 'comida',
+                'precio_cop': cop_val,
+                'precio_usd': usd_val if usd_val and usd_val > 0 else None,
+                'precio_bs': bs_val if bs_val and bs_val > 0 else None,
             })
-    
+
     return productos
 
 
+def _parse_precio(val):
+    if val is None:
+        return 0
+    try:
+        # Handle strings like "4,000" or "$4,000"
+        s = str(val).replace(',', '').replace('$', '').replace(' ', '').strip()
+        return int(float(s))
+    except (ValueError, TypeError):
+        return 0
+
+
+def _parse_precio_float(val):
+    if val is None:
+        return None
+    try:
+        s = str(val).replace(',', '').replace('$', '').replace(' ', '').strip()
+        if s in ('0', '0.0', '0.00', ''):
+            return None
+        return round(float(s), 2)
+    except (ValueError, TypeError):
+        return None
+
+
 def import_productos(excel_path=None):
-    """
-    Importa productos desde el Excel a la base de datos.
-    Retorna (insertados, actualizados).
-    """
     if excel_path is None:
         excel_path = find_excel()
-    
+
     if not excel_path:
-        print(f'❌ Excel "{EXCEL_FILENAME}" no encontrado en el proyecto.')
+        print(f'❌ Excel "{EXCEL_FILENAME}" no encontrado.')
         return 0, 0
-    
+
     print(f'📄 Leyendo: {excel_path}')
     productos_data = parse_excel(excel_path)
-    print(f'   → {len(productos_data)} productos encontrados')
-    
+    if not productos_data:
+        print('   ⚠️  No se encontraron productos con precio > 0 en el Excel.')
+        return 0, 0
+    print(f'   → {len(productos_data)} productos con precio')
+
     insertados = 0
     actualizados = 0
-    
+
     for data in productos_data:
         nombre = data['nombre']
         existente = Producto.query.filter_by(nombre=nombre).first()
         if existente:
-            # Actualizar precio y categoría si cambió
             changed = False
-            if existente.precio_venta_cop != data['precio_venta_cop']:
-                existente.precio_venta_cop = data['precio_venta_cop']
+            if existente.precio_cop != data['precio_cop']:
+                existente.precio_cop = data['precio_cop']
+                existente.precio_venta_cop = data['precio_cop']
                 changed = True
-            if existente.categoria != data['categoria']:
-                existente.categoria = data['categoria']
+            if data.get('precio_usd') is not None and existente.precio_usd != data['precio_usd']:
+                existente.precio_usd = data['precio_usd']
+                changed = True
+            if data.get('precio_bs') is not None and existente.precio_bs != data['precio_bs']:
+                existente.precio_bs = data['precio_bs']
                 changed = True
             if changed:
                 actualizados += 1
         else:
             prod = Producto(
                 nombre=nombre,
-                categoria=data['categoria'],
-                precio_venta_cop=data['precio_venta_cop'],
+                tipo=data['tipo'],
+                precio_cop=data['precio_cop'],
+                precio_venta_cop=data['precio_cop'],
+                precio_usd=data.get('precio_usd'),
+                precio_bs=data.get('precio_bs'),
                 descuenta_inventario=False,
             )
             db.session.add(prod)
             insertados += 1
-    
+
     db.session.commit()
-    
-    # Mostrar resumen
+
     total = Producto.query.count()
     print(f'\n📊 Resumen:')
     print(f'   Insertados: {insertados}')
     print(f'   Actualizados: {actualizados}')
     print(f'   Total en BD: {total}')
-    
+
     return insertados, actualizados
 
 

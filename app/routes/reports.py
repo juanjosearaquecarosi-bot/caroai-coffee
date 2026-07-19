@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request
 from flask_login import login_required
-from ..models import db, Pedido, Ubicacion, Gasto, TasaCambio
+from ..models import db, Pedido, Mesa, Gasto, TasaCambio
 from ..utils.decorators import role_required
 from datetime import datetime, date
 
@@ -46,9 +46,9 @@ def index():
             productos_vendidos[nombre] = productos_vendidos.get(nombre, 0) + item.cantidad
     top_productos = sorted(productos_vendidos.items(), key=lambda x: x[1], reverse=True)[:10]
 
-    # Estado de ubicaciones
-    ubicaciones_libres = Ubicacion.query.filter_by(estado='libre').count()
-    ubicaciones_ocupadas = Ubicacion.query.filter_by(estado='ocupada').count()
+    # Estado de mesas
+    mesas_libres = Mesa.query.filter_by(estado='libre').count()
+    mesas_ocupadas = Mesa.query.filter_by(estado='ocupada').count()
 
     return render_template(
         'reports/index.html',
@@ -58,8 +58,8 @@ def index():
         monedas_resumen=monedas_resumen,
         top_productos=top_productos,
         pedidos_hoy=pedidos_hoy,
-        ubicaciones_libres=ubicaciones_libres,
-        ubicaciones_ocupadas=ubicaciones_ocupadas,
+        mesas_libres=mesas_libres,
+        mesas_ocupadas=mesas_ocupadas,
     )
 
 

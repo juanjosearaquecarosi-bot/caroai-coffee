@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}POS · Caroai Café{% endblock %}
+
+{% block content %}
+<style>
+.pos-map { margin: -2rem -1.5rem; padding: 2rem 1.5rem; background: var(--color-bg); min-height: calc(100vh - var(--nav-height) - 2rem); }
+.pos-map-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+.pos-map-header h1 { font-family: var(--font-display); font-size: 1.75rem; font-weight: 600; letter-spacing: -0.02em; display: flex; align-items: center; gap: 0.5rem; }
+.pos-map-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.stat-badge { display: flex; align-items: center; gap: 0.375rem; padding: 0.375rem 0.75rem; border-radius: 999px; font-size: 0.8125rem; font-weight: 600; }
+.stat-badge-libre { background: var(--color-success-bg); color: var(--color-success-text); }
+.stat-badge-ocupada { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.stat-badge-items { background: var(--color-info-bg); color: var(--color-info-text); }
+.mesa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+.mesa-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.25rem; text-align: center; transition: all 0.2s ease; box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
+.mesa-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.mesa-card-libre { border-color: rgba(123,168,141,0.3); }
+.mesa-card-ocupada { border-color: rgba(212,168,75,0.3); }
+.mesa-card .mesa-icon { font-size: 2rem; margin-bottom: 0.5rem; display: block; }
+.mesa-card .mesa-nombre { font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+.mesa-card-libre .mesa-nombre { color: var(--color-success); }
+.mesa-card-ocupada .mesa-nombre { color: var(--color-warning); }
+.mesa-card .mesa-badge { margin-bottom: 0.75rem; }
+.mesa-card .mesa-time { font-size: 0.75rem; color: var(--color-text-muted); margin-bottom: 0.75rem; min-height: 1.2em; }
+.mesa-card .mesa-btn { width: 100%; }
+.no-mesas { grid-column: 1/-1; text-align: center; padding: 3rem 1rem; color: var(--color-text-muted); }
+@media (max-width:600px) { .mesa-grid { grid-template-columns: repeat(2,1fr); } }
+</style>
+
+<div class="pos-map">
+    <div class="pos-map-header">
+        <h1>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M3 7h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+                <line x1="12" y1="11" x2="12" y2="19"/><line x1="7" y1="19" x2="17" y2="19"/>
+            </svg>
+            POS · Mesas
+        </h1>
+        <div class="pos-map-actions">
+            <span class="stat-badge stat-badge-libre">{{ stats.libres }} libres</span>
+            <span class="stat-badge stat-badge-ocupada">{{ stats.ocupadas }} ocupadas</span>
+            {% if stats.con_items > 0 %}<span class="stat-badge stat-badge-items">{{ stats.con_items }} por cobrar</span>{% endif %}
+            <a href="{{ url_for('pos.history') }}" class="btn btn-sm btn-outline">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Historial
+            </a>
+        </div>
+    </div>
+
+    <div class="mesa-grid">
+        {% for m in mesas %}
+        <div class="mesa-card mesa-card-{{ m.estado }}">
+            <span class="mesa-icon">
+                {% if 'Barra' in m.nombre %}🍺{% else %}🪑{% endif %}
+            </span>
+            <div class="mesa-nombre">{{ m.nombre }}</div>
+            <div class="mesa-badge">
+                {% if m.estado == 'libre' %}
+                <span class="badge badge-libre"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Libre</span>
+                {% elif m._tiene_items %}
+                <span class="badge badge-pagado"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> {{ m._items_count }} prod.</span>
+                {% else %}
+                <span class="badge badge-ocupada"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Ocupada</span>
+                {% endif %}
+            </div>
+            <div class="mesa-time">
+                {% if m.fecha_apertura and m.estado == 'ocupada' %}
+                <span>Abierta {{ m.fecha_apertura.strftime('%H:%M') }}</span>
+                {% else %}&nbsp;{% endif %}
+            </div>
+            <div class="mesa-actions">
+                {% if m.estado == 'libre' %}
+                <form action="{{ url_for('pos.open_mesa', mesa_id=m.id) }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-success mesa-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Abrir mesa
+                    </button>
+                </form>
+                {% else %}
+                <a href="{{ url_for('pos.mesa', mesa_id=m.id) }}" class="btn {% if m._tiene_items %}btn-warning{% else %}btn-primary{% endif %} mesa-btn">
+                    {% if m._tiene_items %}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Cobrar
+                    {% else %}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    Pedido
+                    {% endif %}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="no-mesas">
+            <p>No hay mesas registradas. Corre <code>python seed_data.py</code> para crearlas.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

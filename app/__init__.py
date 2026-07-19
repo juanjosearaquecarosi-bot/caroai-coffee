@@ -38,7 +38,7 @@ def create_app():
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
         flash('La sesión expiró o el token de seguridad no es válido. Por favor, intenta de nuevo.', 'warning')
-        return redirect(url_for('tables.index'))
+        return redirect(url_for('pos.index'))
 
     # User loader callback
     from .models import Usuario  # Import here to avoid circular import
@@ -48,8 +48,8 @@ def create_app():
         return db.session.get(Usuario, int(user_id))
 
     # Register blueprints
-    from .routes.tables import tables_bp
     from .routes.sales import sales_bp
+    from .routes.pos import pos_bp
     from .routes.inventory import inventory_bp
     from .routes.reports import reports_bp
     from .routes.auth import auth_bp
@@ -57,8 +57,8 @@ def create_app():
     from .routes.tasas import tasas_bp
     from .routes.facturas import facturas_bp
 
-    app.register_blueprint(tables_bp, url_prefix='/tables')
     app.register_blueprint(sales_bp, url_prefix='/sales')
+    app.register_blueprint(pos_bp)
     app.register_blueprint(inventory_bp, url_prefix='/inventory')
     app.register_blueprint(reports_bp, url_prefix='/reports')
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -68,7 +68,7 @@ def create_app():
 
     @app.route('/')
     def index():
-        return redirect(url_for('sales.index'))
+        return redirect(url_for('pos.index'))
     # CLI command to create admin user
     @app.cli.command("create-admin")
     def create_admin():

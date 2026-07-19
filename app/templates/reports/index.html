@@ -37,14 +37,14 @@
         <span class="stat-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
         </span>
-        <div class="stat-value">{{ ubicaciones_ocupadas }}</div>
+        <div class="stat-value">{{ mesas_ocupadas }}</div>
         <div class="stat-label">Ocupadas ahora</div>
     </div>
     <div class="card stat-card">
         <span class="stat-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         </span>
-        <div class="stat-value">{{ ubicaciones_libres }}</div>
+        <div class="stat-value">{{ mesas_libres }}</div>
         <div class="stat-label">Libres ahora</div>
     </div>
 </div>
@@ -116,7 +116,7 @@
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Ubicación</th>
+                    <th>Mesa</th>
                     <th>Hora</th>
                     <th>Moneda</th>
                     <th>Método</th>
@@ -128,13 +128,13 @@
                 {% for pedido in pedidos_hoy %}
                 <tr>
                     <td><strong class="mono-number">{{ pedido.id }}</strong></td>
-                    <td>{{ pedido.ubicacion.nombre }}</td>
+                    <td>{{ pedido.mesa.nombre }}</td>
                     <td class="text-small">{% if pedido.pagado_en %}{{ pedido.pagado_en.strftime('%H:%M') }}{% else %}{{ pedido.fecha_hora.strftime('%H:%M') }}{% endif %}</td>
                     <td>{{ pedido.moneda_pago or '—' }}</td>
                     <td class="capitalize">{{ pedido.metodo_pago or '—' }}</td>
                     <td><strong class="mono-number">${{ "{:,}".format(pedido.items|sum(attribute='subtotal_cop')) }}</strong></td>
                     <td class="cell-actions">
-                        <a href="{{ url_for('sales.detail', pedido_id=pedido.id) }}" class="btn btn-sm btn-outline">Ver</a>
+                        <a href="{{ url_for('pos.detail', pedido_id=pedido.id) }}" class="btn btn-sm btn-outline">Ver</a>
                     </td>
                 </tr>
                 {% endfor %}

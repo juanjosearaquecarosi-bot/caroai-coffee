@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% block title %}{{ mesa.nombre }} · POS · Caroai Café{% endblock %}
+
+{% block content %}
+<style>
+.pos-layout { display: flex; gap: 1.5rem; margin: -2rem -1.5rem; padding: 2rem 1.5rem; background: var(--color-bg); min-height: calc(100vh - var(--nav-height) - 2rem); }
+.pos-products { flex: 1; min-width: 0; }
+.pos-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; }
+.pos-topbar h2 { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+.pos-search { position: relative; flex: 1; max-width: 320px; }
+.pos-search input { width: 100%; padding: 0.5rem 1rem 0.5rem 2.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.9375rem; background: var(--color-surface); color: var(--color-text-primary); outline: none; }
+.pos-search input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(184,145,110,0.15); }
+.pos-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); pointer-events: none; }
+.pos-cat-title { font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-secondary); margin: 1rem 0 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+.pos-cat-title::after { content: ''; flex: 1; height: 1px; background: var(--color-border-light); }
+.pos-prod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 0.5rem; }
+.pos-prod-btn { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 0.75rem; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; transition: all 0.15s ease; font-family: var(--font-body); }
+.pos-prod-btn:hover { border-color: var(--color-accent); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.pos-prod-btn:active { transform: scale(0.96); }
+.pos-prod-btn .prod-icon { font-size: 1.25rem; }
+.pos-prod-btn .prod-name { font-size: 0.8125rem; font-weight: 600; text-align: center; line-height: 1.2; }
+.pos-prod-btn .prod-price { font-family: var(--font-display); font-size: 0.875rem; font-weight: 600; color: var(--color-accent); }
+.pos-prod-btn .prod-price-usd { font-size: 0.6875rem; color: var(--color-text-muted); }
+.pos-prod-btn.added { animation: pop 0.3s ease; }
+.pos-no-prods { display: none; text-align: center; padding: 2rem; color: var(--color-text-muted); }
+.pos-no-prods.show { display: block; }
+@keyframes pop { 0%{transform:scale(1)} 40%{transform:scale(0.93)} 70%{transform:scale(1.05)} 100%{transform:scale(1)} }
+
+/* Cart */
+.pos-cart { width: 380px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); max-height: calc(100vh - var(--nav-height) - 3rem); position: sticky; top: calc(var(--nav-height) + 0.5rem); }
+.pos-cart-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--color-border-light); display: flex; align-items: center; justify-content: space-between; }
+.pos-cart-header h3 { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; display: flex; align-items: center; gap: 0.375rem; }
+.pos-cart-items { flex: 1; overflow-y: auto; min-height: 100px; }
+.pos-cart-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 1.25rem; transition: background 0.15s; }
+.pos-cart-item:hover { background: var(--color-surface-hover); }
+.pos-cart-item-info { flex: 1; min-width: 0; }
+.pos-cart-item-name { font-size: 0.875rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pos-cart-item-unit { font-size: 0.75rem; color: var(--color-text-muted); }
+.pos-cart-item-qty { display: flex; align-items: center; gap: 0.375rem; }
+.pos-cart-item-qty .qty-btn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); cursor: pointer; font-size: 1rem; font-weight: 600; color: var(--color-text-secondary); transition: all 0.15s; padding: 0; line-height: 1; }
+.pos-cart-item-qty .qty-btn:hover { border-color: var(--color-danger); color: var(--color-danger); background: var(--color-danger-bg); }
+.pos-cart-item-qty .qty-plus:hover { border-color: var(--color-success); color: var(--color-success); background: var(--color-success-bg); }
+.pos-cart-item-subtotal { min-width: 75px; text-align: right; font-weight: 700; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.pos-cart-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 1.5rem; color: var(--color-text-muted); text-align: center; gap: 0.5rem; }
+.pos-cart-footer { border-top: 1px solid var(--color-border-light); padding: 1rem 1.25rem; display: flex; flex-direction: column; gap: 0.625rem; }
+.pos-cart-total { display: flex; align-items: center; justify-content: space-between; }
+.pos-cart-total-label { font-weight: 600; color: var(--color-text-secondary); }
+.pos-cart-total-value { font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; }
+.pos-cart-actions { display: flex; gap: 0.5rem; }
+.pos-cart-actions .btn { flex: 1; }
+@media (max-width:900px) { .pos-layout{flex-direction:column;margin:-1.25rem -1rem;padding:1.25rem 1rem} .pos-cart{width:100%;max-height:none;position:static} .pos-prod-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))} }
+@media (max-width:480px) { .pos-prod-grid{grid-template-columns:repeat(2,1fr)} }
+</style>
+
+<div class="pos-layout">
+    <div class="pos-products">
+        <div class="pos-topbar">
+            <h2>
+                {% if 'Barra' in mesa.nombre %}🍺{% else %}🪑{% endif %}
+                {{ mesa.nombre }}
+                {% if pedido %}<span class="badge badge-abierto" style="font-size:0.75rem;">#{{ pedido.id }}</span>{% endif %}
+            </h2>
+            <div class="pos-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="searchInput" placeholder="Buscar…" oninput="filterProds(this.value)">
+            </div>
+            <a href="{{ url_for('pos.index') }}" class="btn btn-sm btn-ghost">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                Volver
+            </a>
+        </div>
+
+        {% set bebidas = productos|selectattr('tipo', 'equalto', 'bebida')|list %}
+        {% set comidas = productos|selectattr('tipo', 'equalto', 'comida')|list %}
+        {% set granos = productos|selectattr('tipo', 'equalto', 'grano')|list %}
+        {% set cervezas = productos|selectattr('tipo', 'equalto', 'cerveza')|list %}
+
+        {% if bebidas %}
+        <div class="pos-cat-title" data-cat="bebida">☕ Bebidas · Café</div>
+        <div class="pos-prod-grid" data-cat="bebida">
+            {% for p in bebidas %}
+            <button class="pos-prod-btn" data-prod="{{ p.id }}" data-search="{{ p.nombre|lower }}" onclick="addProd({{ p.id }})">
+                <span class="prod-icon">☕</span>
+                <span class="prod-name">{{ p.nombre }}</span>
+                <span class="prod-price">${{ "{:,}".format(p.precio_cop or p.precio_venta_cop) }}</span>
+                {% if p.precio_usd %}<span class="prod-price-usd">${{ "%.2f"|format(p.precio_usd) }} USD</span>{% endif %}
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if comidas %}
+        <div class="pos-cat-title" data-cat="comida">🍰 Comidas</div>
+        <div class="pos-prod-grid" data-cat="comida">
+            {% for p in comidas %}
+            <button class="pos-prod-btn" data-prod="{{ p.id }}" data-search="{{ p.nombre|lower }}" onclick="addProd({{ p.id }})">
+                <span class="prod-icon">🍰</span>
+                <span class="prod-name">{{ p.nombre }}</span>
+                <span class="prod-price">${{ "{:,}".format(p.precio_cop or p.precio_venta_cop) }}</span>
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if granos %}
+        <div class="pos-cat-title" data-cat="grano">🫘 Café en grano</div>
+        <div class="pos-prod-grid" data-cat="grano">
+            {% for p in granos %}
+            <button class="pos-prod-btn" data-prod="{{ p.id }}" data-search="{{ p.nombre|lower }}" onclick="addProd({{ p.id }})">
+                <span class="prod-icon">🫘</span>
+                <span class="prod-name">{{ p.nombre }}</span>
+                <span class="prod-price">${{ "{:,}".format(p.precio_cop or p.precio_venta_cop) }}</span>
+                {% if p.precio_usd %}<span class="prod-price-usd">${{ "%.2f"|format(p.precio_usd) }} USD</span>{% endif %}
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if cervezas %}
+        <div class="pos-cat-title" data-cat="cerveza">🍺 Cervezas</div>
+        <div class="pos-prod-grid" data-cat="cerveza">
+            {% for p in cervezas %}
+            <button class="pos-prod-btn" data-prod="{{ p.id }}" data-search="{{ p.nombre|lower }}" onclick="addProd({{ p.id }})">
+                <span class="prod-icon">🍺</span>
+                <span class="prod-name">{{ p.nombre }}</span>
+                <span class="prod-price">${{ "{:,}".format(p.precio_cop or p.precio_venta_cop) }}</span>
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="pos-no-prods" id="noProds"><p>🔍 No se encontraron productos</p></div>
+    </div>
+
+    <!-- Cart -->
+    <div class="pos-cart">
+        <div class="pos-cart-header">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                Cuenta {{ mesa.nombre }}
+            </h3>
+            {% if pedido %}<span class="text-muted text-xs" style="font-weight:500;">{{ pedido.items|sum(attribute='cantidad') }} art.</span>{% endif %}
+        </div>
+        <div class="pos-cart-items" id="cartItems">
+            {% if pedido and pedido.items %}
+                {% for item in pedido.items %}
+                <div class="pos-cart-item" data-item="{{ item.id }}">
+                    <div class="pos-cart-item-info">
+                        <div class="pos-cart-item-name">{{ item.producto.nombre }}</div>
+                        <div class="pos-cart-item-unit">${{ "{:,}".format(item.precio_unitario_cop) }}/u</div>
+                    </div>
+                    <div class="pos-cart-item-qty">
+                        <button class="qty-btn" onclick="removeProd({{ item.id }})" title="Quitar uno">−</button>
+                        <span>{{ item.cantidad }}</span>
+                        <button class="qty-btn qty-plus" onclick="addProd({{ item.producto_id }})" title="Agregar uno">+</button>
+                    </div>
+                    <div class="pos-cart-item-subtotal">${{ "{:,}".format(item.subtotal_cop) }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="pos-cart-empty">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                <p>Cuenta vacía</p>
+                <span class="text-xs">Toca un producto para agregarlo</span>
+            </div>
+            {% endif %}
+        </div>
+        <div class="pos-cart-footer">
+            <div class="pos-cart-total">
+                <span class="pos-cart-total-label">Total COP</span>
+                <span class="pos-cart-total-value" id="cartTotal">${{ "{:,}".format(total_cop) }}</span>
+            </div>
+            {% if pedido and pedido.items %}
+            <div class="pos-cart-actions">
+                <button class="btn btn-primary btn-lg" style="flex:2;" onclick="showChargeModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Cobrar
+                </button>
+                {% if current_user.rol == 'admin' %}
+                <form action="{{ url_for('pos.pendiente', mesa_id=mesa.id) }}" method="post" style="flex:1;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-outline btn-lg" style="width:100%;">Pendiente</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Charge Modal -->
+<div class="charge-modal-overlay" id="chargeModal" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="charge-modal">
+        <h2>💰 Cobrar {{ mesa.nombre }}</h2>
+        <p class="modal-subtitle">Registra el pago de esta cuenta</p>
+        <div class="modal-total">
+            <div class="modal-total-amount" id="modalTotal">${{ "{:,}".format(total_cop) }}</div>
+            <div class="modal-total-label">COP — Peso colombiano</div>
+        </div>
+        <form method="POST" action="{{ url_for('pos.charge', mesa_id=mesa.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label class="form-label">Método de pago</label>
+                <div class="payment-pills">
+                    <button type="button" class="payment-pill active" data-value="efectivo" onclick="selectPay(this)">💵 Efectivo</button>
+                    <button type="button" class="payment-pill" data-value="binance" onclick="selectPay(this)"> Binance</button>
+                    <button type="button" class="payment-pill" data-value="bancolombia" onclick="selectPay(this)">🏦 Bancolombia</button>
+                </div>
+                <input type="hidden" name="metodo_pago" id="metodoPago" value="efectivo">
+                <input type="hidden" name="moneda_pago" value="COP">
+            </div>
+            <div class="form-group">
+                <label for="obs" class="form-label">Observaciones <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                <textarea class="form-textarea" id="obs" name="observaciones" placeholder="Binance — $20 USD — ref: ABC123…"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" onclick="document.getElementById('chargeModal').classList.remove('open')">Cancelar</button>
+                <button type="submit" class="btn-confirm">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:middle;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>
+                    Confirmar pago · ${{ "{:,}".format(total_cop) }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.charge-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;backdrop-filter:blur(4px);align-items:center;justify-content:center}
+.charge-modal-overlay.open{display:flex}
+.charge-modal{background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;max-width:440px;padding:2rem;animation:slideUp .25s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.charge-modal h2{font-family:var(--font-display);font-size:1.375rem;margin-bottom:.25rem}
+.charge-modal .modal-subtitle{color:var(--color-text-secondary);font-size:.875rem;margin-bottom:1.5rem}
+.charge-modal .modal-total{text-align:center;padding:1.25rem 0;margin-bottom:1.25rem;border-bottom:1px solid var(--color-border-light)}
+.charge-modal .modal-total-amount{font-family:var(--font-display);font-size:2.25rem;font-weight:700}
+.charge-modal .modal-total-label{font-size:.8125rem;color:var(--color-text-muted);margin-top:.25rem}
+.charge-modal .form-group{margin-bottom:1rem}
+.charge-modal .form-label{display:block;font-size:.8125rem;font-weight:600;margin-bottom:.375rem}
+.charge-modal .form-select,.charge-modal .form-textarea{width:100%;padding:.625rem .875rem;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;background:var(--color-bg);color:var(--color-text-primary);outline:none;transition:border-color .2s;box-sizing:border-box}
+.charge-modal .form-select:focus,.charge-modal .form-textarea:focus{border-color:var(--color-accent);box-shadow:0 0 0 3px rgba(184,145,110,0.15)}
+.charge-modal .form-textarea{resize:vertical;min-height:60px}
+.charge-modal .form-actions{display:flex;gap:.75rem;margin-top:1.5rem}
+.charge-modal .btn-cancel{flex:1;padding:.75rem;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:transparent;font-weight:600;font-size:.875rem;color:var(--color-text-secondary);cursor:pointer;transition:all .15s;font-family:var(--font-body)}
+.charge-modal .btn-cancel:hover{background:var(--color-surface-hover);border-color:var(--color-text-muted)}
+.charge-modal .btn-confirm{flex:2;padding:.75rem;border:none;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--color-success),#6A9A7D);color:#fff;font-weight:700;font-size:.875rem;cursor:pointer;transition:all .15s;font-family:var(--font-body)}
+.charge-modal .btn-confirm:hover{box-shadow:0 2px 8px rgba(123,168,141,0.3)}
+.payment-pills{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:1rem}
+.payment-pill{padding:.625rem .5rem;border:2px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg);text-align:center;cursor:pointer;transition:all .15s;font-size:.8125rem;font-weight:600;color:var(--color-text-secondary);font-family:var(--font-body)}
+.payment-pill:hover{border-color:var(--color-accent);color:var(--color-accent)}
+.payment-pill.active{border-color:var(--color-success);background:var(--color-success-bg);color:var(--color-success-text)}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var CSRF = '{{ csrf_token() }}';
+var ADD_URL = '{{ url_for("pos.add_item", mesa_id=mesa.id) }}';
+var REMOVE_URL = '{{ url_for("pos.remove_item", mesa_id=mesa.id, item_id=0) }}'.replace('/0','/');
+
+function filterProds(q) {
+    q = q.toLowerCase().trim();
+    let anyVisible = false;
+    document.querySelectorAll('.pos-prod-btn').forEach(function(b) {
+        var s = (b.getAttribute('data-search')||'');
+        var match = !q || s.includes(q);
+        b.style.display = match ? '' : 'none';
+        if (match) anyVisible = true;
+    });
+    document.querySelectorAll('.pos-cat-title').forEach(function(t) {
+        var cat = t.getAttribute('data-cat');
+        var vis = Array.from(document.querySelectorAll('.pos-prod-grid[data-cat="'+cat+'"] .pos-prod-btn')).some(function(b){return b.style.display!=='none'});
+        t.style.display = vis ? '' : 'none';
+    });
+    document.querySelectorAll('.pos-prod-grid').forEach(function(g) {
+        var vis = Array.from(g.querySelectorAll('.pos-prod-btn')).some(function(b){return b.style.display!=='none'});
+        g.style.display = vis ? '' : 'none';
+    });
+    document.getElementById('noProds').classList.toggle('show', !anyVisible);
+}
+
+function addProd(prodId) {
+    var fd = new FormData();
+    fd.append('producto_id', prodId);
+    fd.append('cantidad', 1);
+    fd.append('csrf_token', CSRF);
+    fetch(ADD_URL, {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}})
+    .then(function(r){return r.json()})
+    .then(function(d){if(d.ok){renderItems(d.items,d.total);var btn=document.querySelector('.pos-prod-btn[data-prod=\"'+prodId+'\"]');if(btn){btn.classList.remove('added');void btn.offsetWidth;btn.classList.add('added')}}})
+    .catch(function(e){console.error(e);location.reload()});
+}
+
+function removeProd(itemId) {
+    fetch(REMOVE_URL+itemId, {method:'POST', headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken':CSRF}})
+    .then(function(r){return r.json()})
+    .then(function(d){if(d.ok)renderItems(d.items,d.total)})
+    .catch(function(e){console.error(e);location.reload()});
+}
+
+function renderItems(items, total) {
+    var container = document.getElementById('cartItems');
+    var totalEl = document.getElementById('cartTotal');
+    var modalTotal = document.getElementById('modalTotal');
+    if (!items || items.length===0) {
+        container.innerHTML = '<div class=\"pos-cart-empty\"><svg width=\"40\" height=\"40\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\" stroke-linecap=\"round\"><circle cx=\"9\" cy=\"21\" r=\"1\"/><circle cx=\"20\" cy=\"21\" r=\"1\"/><path d=\"M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6\"/></svg><p>Cuenta vacía</p><span class=\"text-xs\">Toca un producto para agregarlo</span></div>';
+        totalEl.textContent = '$0';
+        if (modalTotal) modalTotal.textContent = '$0';
+        return;
+    }
+    var h = '';
+    for (var i=0;i<items.length;i++) {
+        var it = items[i];
+        h += '<div class=\"pos-cart-item\" data-item=\"'+it.id+'\"><div class=\"pos-cart-item-info\"><div class=\"pos-cart-item-name\">'+esc(it.nombre)+'</div><div class=\"pos-cart-item-unit\">$'+fmt(it.precio)+'/u</div></div><div class=\"pos-cart-item-qty\"><button class=\"qty-btn\" onclick=\"removeProd('+it.id+')\" title=\"Quitar\">−</button><span>'+it.cantidad+'</span><button class=\"qty-btn qty-plus\" onclick=\"addProd('+it.producto_id+')\" title=\"Agregar\">+</button></div><div class=\"pos-cart-item-subtotal\">$'+fmt(it.subtotal)+'</div></div>';
+    }
+    container.innerHTML = h;
+    totalEl.textContent = '$'+fmt(total);
+    if (modalTotal) modalTotal.textContent = '$'+fmt(total);
+}
+
+function fmt(n) { return n.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g,','); }
+function esc(s) { var d=document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+function selectPay(el) { document.querySelectorAll('.payment-pill').forEach(function(p){p.classList.remove('active')}); el.classList.add('active'); document.getElementById('metodoPago').value=el.getAttribute('data-value'); }
+function showChargeModal() { document.getElementById('chargeModal').classList.add('open'); }
+document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('chargeModal').classList.remove('open')});
+</script>
+{% endblock %}

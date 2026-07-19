@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Pedido #{{ pedido.id }} · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Pedido #{{ pedido.id }}</h1>
+        <p>{{ pedido.mesa.nombre }} · {{ pedido.fecha_hora.strftime('%A %d/%m/%Y %H:%M') }}</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{{ url_for('pos.history') }}" class="btn btn-outline">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Volver
+        </a>
+    </div>
+</div>
+
+<div class="row row-cols-2 mb-3">
+    <div class="card">
+        <div class="card-header"><h3>Resumen</h3></div>
+        <div class="card-body">
+            <div class="info-list">
+                <div class="info-row"><span class="info-label">Mesa</span><span class="info-value">{{ pedido.mesa.nombre }}</span></div>
+                <div class="info-row"><span class="info-label">Estado</span><span class="info-value"><span class="badge {% if pedido.estado=='pagado' %}badge-pagado{% else %}badge-ocupada{% endif %}"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> {{ pedido.estado|capitalize }}</span></span></div>
+                <div class="info-row"><span class="info-label">Productos</span><span class="info-value">{{ pedido.items|length }}</span></div>
+                <div class="info-row"><span class="info-label">Unidades</span><span class="info-value">{{ pedido.items|sum(attribute='cantidad') }}</span></div>
+                <hr class="divider" style="margin:0.5rem 0;">
+                <div class="info-row"><span class="info-label" style="font-size:0.9375rem;">Total COP</span><span class="info-value" style="font-family:var(--font-display);font-size:1.25rem;">${{ "{:,}".format(pedido.total) }}</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header"><h3>Pago</h3></div>
+        <div class="card-body">
+            <div class="info-list">
+                <div class="info-row"><span class="info-label">Moneda</span><span class="info-value">{{ pedido.moneda_pago or 'COP' }}</span></div>
+                <div class="info-row"><span class="info-label">Método</span><span class="info-value capitalize"><span class="badge {% if pedido.metodo_pago=='efectivo' %}badge-libre{% elif pedido.metodo_pago=='binance' %}badge-info{% else %}badge-ocupada{% endif %}">{{ {'efectivo':'💵 Efectivo','binance':' Binance','bancolombia':'🏦 Bancolombia'}.get(pedido.metodo_pago, pedido.metodo_pago) }}</span></span></div>
+                {% if pedido.metodo_pago == 'pagado' and pedido.pagado_en %}
+                <hr class="divider" style="margin:0.25rem 0;">
+                <div class="info-row"><span class="info-label">Pagado</span><span class="info-value text-small">{{ pedido.pagado_en.strftime('%H:%M %d/%m/%Y') }}</span></div>
+                {% endif %}
+                {% if pedido.observaciones %}
+                <hr class="divider" style="margin:0.25rem 0;">
+                <div><span class="info-label">Observaciones</span><p class="mt-1 text-small" style="color:var(--color-text-primary);">{{ pedido.observaciones }}</p></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h3>Productos</h3><span class="text-muted text-small">{{ pedido.items|sum(attribute='cantidad') }} unidades</span></div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+        <table>
+            <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio Unit.</th><th>Subtotal</th></tr></thead>
+            <tbody>
+                {% for item in pedido.items %}
+                <tr><td><strong>{{ item.producto.nombre }}</strong></td><td class="mono-number">{{ item.cantidad }}</td><td class="mono-number">${{ "{:,}".format(item.precio_unitario_cop) }}</td><td><strong class="mono-number">${{ "{:,}".format(item.subtotal_cop) }}</strong></td></tr>
+                {% endfor %}
+            </tbody>
+            <tfoot><tr><td colspan="3" style="text-align:right;">Total COP</td><td class="mono-number">${{ "{:,}".format(pedido.total) }}</td></tr></tfoot>
+        </table>
+    </div>
+</div>
+{% endblock %}
