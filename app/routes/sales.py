@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required
 from ..models import db, Ubicacion, Pedido, Producto, PedidoItem, MovimientoInventario, Receta
 from ..utils.decorators import role_required
@@ -213,6 +213,14 @@ def cancel_pedido(pedido_id):
         flash('Solo se pueden anular pedidos abiertos.', 'warning')
         return redirect(url_for('sales.detail', pedido_id=pedido.id))
 
+    # Anular lógicamente los items que NO han sido eliminados físicamente
+    # (los items eliminados físicamente ya no existen en la BD)
+    now = datetime.utcnow()
+    for item in pedido.items:
+        if not item.anulado:
+            item.anulado_en = now
+            item.motivo_anulacion = 'Anulación de pedido completo'
+
     pedido.estado = 'anulado'
 
     # Liberar la ubicación
@@ -221,5 +229,252 @@ def cancel_pedido(pedido_id):
     ubicacion.fecha_apertura = None
 
     db.session.commit()
-    flash(f'Pedido #{pedido.id} anulado. Ubicación liberada.', 'info')
+    flash(f'Pedido #{pedido.id} anulado. {len(pedido.items)} items registrados como anulados. Ubicación liberada.', 'info')
+    return redirect(url_for('sales.pos_ubicacion', ubicacion_id=ubicacion.id))
+
+
+# ══════════════════════════════════════════════════
+#  POS — PUNTO DE VENTA
+# ══════════════════════════════════════════════════
+
+# ──────────────────────────────────────────────
+#  POS: PANTALLA PRINCIPAL (selección de espacio)
+# ──────────────────────────────────────────────
+@sales_bp.route('/pos')
+@login_required
+@role_required('admin', 'employee')
+def pos_index():
+    """Muestra el mapa de espacios para seleccionar uno y operar."""
+    ubicaciones = Ubicacion.query.order_by(Ubicacion.tipo, Ubicacion.nombre).all()
+    return render_template('sales/pos.html', ubicaciones=ubicaciones,
+                           ubicacion_selected=None, pedido=None,
+                           productos=None, total_cop=0)
+
+
+# ──────────────────────────────────────────────
+#  POS: OPERAR SOBRE UN ESPACIO
+# ──────────────────────────────────────────────
+@sales_bp.route('/pos/<int:ubicacion_id>')
+@login_required
+@role_required('admin', 'employee')
+def pos_ubicacion(ubicacion_id):
+    ubicacion = Ubicacion.query.get_or_404(ubicacion_id)
+    productos = Producto.query.order_by(Producto.categoria, Producto.nombre).all()
+
+    # Buscar pedido abierto o crear uno nuevo
+    pedido_abierto = Pedido.query.filter_by(
+        ubicacion_id=ubicacion.id, estado='abierto'
+    ).first()
+
+    if not pedido_abierto:
+        # Si está marcada como ocupada pero no hay pedido, forzar libre
+        if ubicacion.estado == 'ocupada':
+            ubicacion.estado = 'libre'
+            ubicacion.fecha_apertura = None
+            db.session.commit()
+
+    all_ubicaciones = Ubicacion.query.order_by(Ubicacion.tipo, Ubicacion.nombre).all()
+
+    # Si hay pedido abierto, calcular total
+    total_cop = 0
+    if pedido_abierto:
+        total_cop = sum(
+            item.subtotal_cop for item in pedido_abierto.items
+            if not item.anulado
+        )
+
+    return render_template('sales/pos.html',
+                           ubicaciones=all_ubicaciones,
+                           ubicacion_selected=ubicacion,
+                           pedido=pedido_abierto,
+                           productos=productos,
+                           total_cop=total_cop)
+
+
+# ──────────────────────────────────────────────
+#  POS: ABRIR NUEVO PEDIDO
+# ──────────────────────────────────────────────
+@sales_bp.route('/pos/<int:ubicacion_id>/open', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
+def pos_open(ubicacion_id):
+    ubicacion = Ubicacion.query.get_or_404(ubicacion_id)
+
+    if ubicacion.estado != 'libre':
+        flash(f'{ubicacion.nombre} no está disponible.', 'warning')
+        return redirect(url_for('sales.pos_ubicacion', ubicacion_id=ubicacion.id))
+
+    pedido_existente = Pedido.query.filter_by(
+        ubicacion_id=ubicacion.id, estado='abierto'
+    ).first()
+    if pedido_existente:
+        return redirect(url_for('sales.pos_ubicacion', ubicacion_id=ubicacion.id))
+
+    ubicacion.estado = 'ocupada'
+    ubicacion.fecha_apertura = datetime.utcnow()
+
+    pedido = Pedido(ubicacion_id=ubicacion.id, total=0)
+    db.session.add(pedido)
+    db.session.commit()
+
+    return redirect(url_for('sales.pos_ubicacion', ubicacion_id=ubicacion.id))
+
+
+# ──────────────────────────────────────────────
+#  POS: AGREGAR ITEM RÁPIDO
+# ──────────────────────────────────────────────
+@sales_bp.route('/<int:pedido_id>/quick_add/<int:producto_id>', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
+def quick_add(pedido_id, producto_id):
+    pedido = Pedido.query.get_or_404(pedido_id)
+    if pedido.estado != 'abierto':
+        flash('Solo se pueden agregar items a un pedido abierto.', 'warning')
+        return redirect(url_for('sales.pos_ubicacion', ubicacion_id=pedido.ubicacion_id))
+
+    producto = Producto.query.get_or_404(producto_id)
+    cantidad = request.form.get('cantidad', 1, type=int)
+    if cantidad <= 0:
+        cantidad = 1
+
+    # Buscar si ya existe el mismo producto NO anulado en el pedido
+    item_existente = PedidoItem.query.filter_by(
+        pedido_id=pedido.id,
+        producto_id=producto.id,
+        anulado_en=None
+    ).first()
+
+    if item_existente:
+        # Incrementar cantidad
+        item_existente.cantidad += cantidad
+        item_existente.subtotal_cop = item_existente.precio_unitario_cop * item_existente.cantidad
+    else:
+        item = PedidoItem(
+            pedido_id=pedido.id,
+            producto_id=producto.id,
+            cantidad=cantidad,
+            precio_unitario_cop=producto.precio_venta_cop,
+            subtotal_cop=producto.precio_venta_cop * cantidad,
+        )
+        db.session.add(item)
+
+    db.session.commit()
+
+    # Si la petición es AJAX, devolver JSON
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        items_data = []
+        for item in pedido.items:
+            if not item.anulado:
+                items_data.append({
+                    'id': item.id,
+                    'producto': item.producto.nombre,
+                    'cantidad': item.cantidad,
+                    'precio_unitario': item.precio_unitario_cop,
+                    'subtotal': item.subtotal_cop,
+                })
+        total = sum(i['subtotal'] for i in items_data)
+        return jsonify({'items': items_data, 'total': total, 'ok': True})
+
+    return redirect(url_for('sales.pos_ubicacion', ubicacion_id=pedido.ubicacion_id))
+
+
+# ──────────────────────────────────────────────
+#  POS: QUITAR ITEM (solo pedido abierto — eliminación física)
+# ──────────────────────────────────────────────
+@sales_bp.route('/<int:pedido_id>/quick_remove/<int:item_id>', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
+def quick_remove(pedido_id, item_id):
+    pedido = Pedido.query.get_or_404(pedido_id)
+    if pedido.estado != 'abierto':
+        flash('Solo se pueden quitar items de un pedido abierto.', 'warning')
+        return redirect(url_for('sales.pos_ubicacion', ubicacion_id=pedido.ubicacion_id))
+
+    item = PedidoItem.query.get_or_404(item_id)
+    if item.pedido_id != pedido.id:
+        flash('El item no pertenece a este pedido.', 'warning')
+        return redirect(url_for('sales.pos_ubicacion', ubicacion_id=pedido.ubicacion_id))
+
+    # Disminuir cantidad o eliminar si queda en 0
+    if item.cantidad > 1:
+        item.cantidad -= 1
+        item.subtotal_cop = item.precio_unitario_cop * item.cantidad
+    else:
+        db.session.delete(item)
+
+    db.session.commit()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        items_data = []
+        for i in pedido.items:
+            if not i.anulado:
+                items_data.append({
+                    'id': i.id,
+                    'producto': i.producto.nombre,
+                    'cantidad': i.cantidad,
+                    'precio_unitario': i.precio_unitario_cop,
+                    'subtotal': i.subtotal_cop,
+                })
+        total = sum(i['subtotal'] for i in items_data)
+        return jsonify({'items': items_data, 'total': total, 'ok': True})
+
+    return redirect(url_for('sales.pos_ubicacion', ubicacion_id=pedido.ubicacion_id))
+
+
+# ──────────────────────────────────────────────
+#  ANULAR ITEM (solo pedido pagado — anulación lógica)
+#  NO elimina físicamente; marca anulado_en.
+# ──────────────────────────────────────────────
+@sales_bp.route('/<int:pedido_id>/void_item/<int:item_id>', methods=['POST'])
+@login_required
+@role_required('admin')
+def void_item(pedido_id, item_id):
+    """Anular un item de un pedido ya pagado (solo admin).
+    El item NO se borra de la BD, se marca como anulado."""
+    pedido = Pedido.query.get_or_404(pedido_id)
+    if pedido.estado != 'pagado':
+        flash('Solo se pueden anular items de pedidos pagados.', 'warning')
+        return redirect(url_for('sales.detail', pedido_id=pedido.id))
+
+    item = PedidoItem.query.get_or_404(item_id)
+    if item.pedido_id != pedido.id:
+        flash('El item no pertenece a este pedido.', 'warning')
+        return redirect(url_for('sales.detail', pedido_id=pedido.id))
+
+    if item.anulado:
+        flash('Este item ya fue anulado.', 'warning')
+        return redirect(url_for('sales.detail', pedido_id=pedido.id))
+
+    ahora = datetime.utcnow()
+    item.anulado_en = ahora
+    item.motivo_anulacion = request.form.get('motivo', 'Anulado por administrador')
+
+    db.session.commit()
+    flash(f'{item.producto.nombre} x{item.cantidad} anulado.', 'info')
+    return redirect(url_for('sales.detail', pedido_id=pedido.id))
+
+
+# ──────────────────────────────────────────────
+#  RESTAURAR ITEM ANULADO (solo admin)
+# ──────────────────────────────────────────────
+@sales_bp.route('/<int:pedido_id>/restore_item/<int:item_id>', methods=['POST'])
+@login_required
+@role_required('admin')
+def restore_item(pedido_id, item_id):
+    pedido = Pedido.query.get_or_404(pedido_id)
+    item = PedidoItem.query.get_or_404(item_id)
+
+    if item.pedido_id != pedido.id:
+        flash('El item no pertenece a este pedido.', 'warning')
+        return redirect(url_for('sales.detail', pedido_id=pedido.id))
+
+    if not item.anulado:
+        flash('Este item no está anulado.', 'warning')
+        return redirect(url_for('sales.detail', pedido_id=pedido.id))
+
+    item.anulado_en = None
+    item.motivo_anulacion = None
+
+    db.session.commit()
+    flash(f'{item.producto.nombre} x{item.cantidad} restaurado.', 'success')
     return redirect(url_for('sales.detail', pedido_id=pedido.id))

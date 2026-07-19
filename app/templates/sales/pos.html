@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+{% block title %}POS · Caroai Café{% endblock %}
+
+{% block content %}
+{% if ubicacion_selected and pedido %}
+<!-- ─── POS Activo: Operando sobre un espacio ─── -->
+<div class="pos-layout">
+    <!-- Left sidebar: Espacios (plegable) -->
+    <div class="pos-sidebar" id="posSidebar">
+        <div class="pos-sidebar-header">
+            <h3>Espacios</h3>
+            <button class="btn btn-sm btn-ghost" onclick="document.getElementById('posSidebar').classList.toggle('pos-sidebar-collapsed')" title="Colapsar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+        </div>
+        <div class="pos-espacios-list">
+            {% for u in ubicaciones %}
+            <a href="{{ url_for('sales.pos_ubicacion', ubicacion_id=u.id) }}"
+               class="pos-espacio-link {% if u.id == ubicacion_selected.id %}active{% endif %} {% if u.estado == 'ocupada' %}ocupada{% endif %}">
+                <span class="pos-espacio-icon">
+                    {% if u.tipo == 'mesa' %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M3 7h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><line x1="12" y1="11" x2="12" y2="19"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
+                    {% elif u.tipo == 'barra' %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M6 8H5a4 4 0 0 0 0 8h1"/><rect x="6" y="8" width="12" height="10" rx="2"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+                    {% else %}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
+                    {% endif %}
+                </span>
+                <span class="pos-espacio-nombre">{{ u.nombre }}</span>
+                <span class="pos-espacio-estado {% if u.estado == 'ocupada' %}dot-warning{% else %}dot-success{% endif %}"></span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Main POS area -->
+    <div class="pos-main">
+        <!-- Top bar: Location info -->
+        <div class="pos-topbar">
+            <div class="pos-topbar-left">
+                <span class="pos-topbar-espacio">
+                    {% if ubicacion_selected.tipo == 'mesa' %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M3 7h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><line x1="12" y1="11" x2="12" y2="19"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
+                    {% elif ubicacion_selected.tipo == 'barra' %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M6 8H5a4 4 0 0 0 0 8h1"/><rect x="6" y="8" width="12" height="10" rx="2"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+                    {% else %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
+                    {% endif %}
+                    <strong>{{ ubicacion_selected.nombre }}</strong>
+                </span>
+                {% if pedido %}
+                <span class="pos-topbar-pedido">Pedido #{{ pedido.id }}</span>
+                <span class="pos-topbar-tiempo">Abierto {{ pedido.fecha_hora.strftime('%H:%M') }}</span>
+                {% endif %}
+            </div>
+            <div class="pos-topbar-right">
+                <a href="{{ url_for('sales.pos_index') }}" class="btn btn-sm btn-ghost">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    Cambiar espacio
+                </a>
+            </div>
+        </div>
+
+        {% if pedido %}
+        <!-- ─── POS Body: Product catalog + Order ─── -->
+        <div class="pos-body">
+            <!-- Product catalog -->
+            <div class="pos-catalogo">
+                <div class="pos-catalogo-header">
+                    <h3>Productos</h3>
+                    <div class="pos-search">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" class="pos-search-input" id="productSearch" placeholder="Buscar producto…" oninput="filterProducts(this.value)">
+                    </div>
+                </div>
+                <div class="pos-catalogo-grid" id="productGrid">
+                    {% for producto in productos %}
+                    <form action="{{ url_for('sales.quick_add', pedido_id=pedido.id, producto_id=producto.id) }}" method="post" class="product-card-form"
+                          onsubmit="return posQuickAdd(this, event)">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="cantidad" value="1">
+                        <button type="submit" class="product-card" data-search="{{ producto.nombre|lower }} {{ producto.categoria|lower }}">
+                            <span class="product-card-categoria">{{ producto.categoria }}</span>
+                            <span class="product-card-nombre">{{ producto.nombre }}</span>
+                            <span class="product-card-precio">${{ "{:,}".format(producto.precio_venta_cop) }}</span>
+                        </button>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Order summary panel -->
+            <div class="pos-order-panel">
+                <div class="pos-order-header">
+                    <h3>Pedido #{{ pedido.id }}</h3>
+                    <span class="badge {% if pedido.estado == 'abierto' %}badge-abierto{% else %}badge-pagado{% endif %}">
+                        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
+                        {{ pedido.estado|capitalize }}
+                    </span>
+                </div>
+
+                <div class="pos-order-items" id="orderItems">
+                    {% for item in pedido.items %}
+                    {% if not item.anulado %}
+                    <div class="pos-order-item" data-item-id="{{ item.id }}">
+                        <div class="pos-order-item-info">
+                            <span class="pos-order-item-nombre">{{ item.producto.nombre }}</span>
+                            <span class="pos-order-item-precio">${{ "{:,}".format(item.precio_unitario_cop) }}/u</span>
+                        </div>
+                        <div class="pos-order-item-actions">
+                            <span class="pos-order-item-cantidad">x{{ item.cantidad }}</span>
+                            <span class="pos-order-item-subtotal">${{ "{:,}".format(item.subtotal_cop) }}</span>
+                            {% if pedido.estado == 'abierto' %}
+                            <form action="{{ url_for('sales.quick_remove', pedido_id=pedido.id, item_id=item.id) }}" method="post"
+                                  class="inline" onsubmit="return posQuickRemove(this, event)">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-ghost pos-remove-btn" title="Quitar uno">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="pos-order-empty">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                        <p>No hay productos aún</p>
+                        <span class="text-xs text-muted">Toca un producto para agregarlo</span>
+                    </div>
+                    {% endfor %}
+
+                    {% set ns = namespace(has_anulados=false) %}
+                    {% for item in pedido.items %}
+                    {% if item.anulado %}{% set ns.has_anulados = true %}{% endif %}
+                    {% endfor %}
+                    {% if ns.has_anulados %}
+                    <div class="pos-order-voided-divider">
+                        <span>Anulados</span>
+                    </div>
+                    {% for item in pedido.items %}
+                    {% if item.anulado %}
+                    <div class="pos-order-item pos-order-item-voided">
+                        <div class="pos-order-item-info">
+                            <span class="pos-order-item-nombre">{{ item.producto.nombre }}</span>
+                            <span class="pos-order-item-voided-mark">ANULADO</span>
+                        </div>
+                        <div class="pos-order-item-actions">
+                            <span class="pos-order-item-cantidad">x{{ item.cantidad }}</span>
+                            <span class="pos-order-item-subtotal">${{ "{:,}".format(item.subtotal_cop) }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+                </div>
+
+                <div class="pos-order-total" id="orderTotal">
+                    <span>Total COP</span>
+                    <strong>${{ "{:,}".format(total_cop) }}</strong>
+                </div>
+
+                <div class="pos-order-actions">
+                    {% if pedido.estado == 'abierto' %}
+                    <a href="{{ url_for('sales.close_pedido_form', pedido_id=pedido.id) }}" class="btn btn-primary btn-lg btn-block">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Cobrar · ${{ "{:,}".format(total_cop) }}
+                    </a>
+                    {% if current_user.rol == 'admin' %}
+                    <form action="{{ url_for('sales.cancel_pedido', pedido_id=pedido.id) }}" method="post"
+                          onsubmit="return confirm('¿Anular pedido #{{ pedido.id }}? Se liberará {{ ubicacion_selected.nombre }}.');" style="width:100%;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-danger btn-block">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                            Anular pedido
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <!-- ─── Espacio libre: botón para abrir ─── -->
+        <div class="pos-body pos-body-center">
+            <div class="card pos-empty-card">
+                <div class="card-body" style="text-align:center; padding:3rem 2rem;">
+                    <span class="empty-icon" style="font-size:3rem; display:block; margin-bottom:1rem; opacity:0.6;">
+                        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                    </span>
+                    <h2 style="font-family:var(--font-display); margin-bottom:0.5rem;">{{ ubicacion_selected.nombre }}</h2>
+                    <p class="text-muted" style="margin-bottom:1.5rem;">Este espacio está libre. ¿Deseas abrir un pedido?</p>
+                    <form action="{{ url_for('sales.pos_open', ubicacion_id=ubicacion_selected.id) }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Abrir pedido
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% else %}
+<!-- ─── Sin espacio seleccionado: Mapa de mesas ─── -->
+<div class="page-header">
+    <div>
+        <h1>POS · Punto de Venta</h1>
+        <p>Selecciona un espacio para comenzar</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{{ url_for('sales.index') }}" class="btn btn-outline btn-sm">Historial</a>
+    </div>
+</div>
+
+<!-- Stats summary -->
+<div class="card-grid mb-3">
+    <div class="card stat-card">
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <div class="stat-value">{{ ubicaciones|selectattr('estado', 'equalto', 'libre')|list|length }}</div>
+        <div class="stat-label">Libres</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        </span>
+        <div class="stat-value">{{ ubicaciones|selectattr('estado', 'equalto', 'ocupada')|list|length }}</div>
+        <div class="stat-label">Ocupadas</div>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        </span>
+        <div class="stat-value">{{ ubicaciones|length }}</div>
+        <div class="stat-label">Total espacios</div>
+    </div>
+</div>
+
+<div class="mesa-grid fade-in">
+    {% for ubicacion in ubicaciones %}
+    <div class="mesa-card mesa-card-{{ ubicacion.estado }}" style="animation-delay: {{ loop.index0 * 0.04 }}s;">
+        <div class="mesa-tipo-badge">
+            {% if ubicacion.tipo == 'mesa' %}
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><path d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2"/><path d="M3 7h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><line x1="12" y1="11" x2="12" y2="19"/><line x1="7" y1="19" x2="17" y2="19"/></svg>
+            {% elif ubicacion.tipo == 'barra' %}
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M6 8H5a4 4 0 0 0 0 8h1"/><rect x="6" y="8" width="12" height="10" rx="2"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+            {% else %}
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
+            {% endif %}
+        </div>
+        <div class="mesa-numero">{{ ubicacion.nombre }}</div>
+        <div class="mesa-estado">
+            {% if ubicacion.estado == 'libre' %}
+            <span class="badge badge-libre"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Libre</span>
+            {% else %}
+            <span class="badge badge-ocupada"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Ocupada</span>
+            {% endif %}
+        </div>
+        <div class="mesa-time">
+            {% if ubicacion.fecha_apertura and ubicacion.estado == 'ocupada' %}
+            <span class="text-muted-light">Abierta {{ ubicacion.fecha_apertura.strftime('%H:%M') }}</span>
+            {% else %}&nbsp;{% endif %}
+        </div>
+        <div class="mesa-actions">
+            <a href="{{ url_for('sales.pos_ubicacion', ubicacion_id=ubicacion.id) }}" class="btn {% if ubicacion.estado == 'libre' %}btn-success{% else %}btn-primary{% endif %}">
+                {% if ubicacion.estado == 'libre' %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Abrir
+                {% else %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                Pedido
+                {% endif %}
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ─── POS: Filtro de productos ───
+function filterProducts(query) {
+    query = query.toLowerCase().trim();
+    document.querySelectorAll('.product-card').forEach(function(card) {
+        var searchData = card.getAttribute('data-search') || '';
+        card.closest('.product-card-form').style.display = (!query || searchData.includes(query)) ? '' : 'none';
+    });
+}
+
+// ─── POS: Quick Add via AJAX ───
+function posQuickAdd(form, event) {
+    event.preventDefault();
+    var formData = new FormData(form);
+    formData.append('X-Requested-With', 'XMLHttpRequest');
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            renderOrderItems(data.items, data.total);
+            // Animar el botón
+            var btn = form.querySelector('.product-card');
+            btn.classList.add('product-card-added');
+            setTimeout(function() { btn.classList.remove('product-card-added'); }, 300);
+        }
+    })
+    .catch(function(err) { console.error('Error:', err); });
+    return false;
+}
+
+// ─── POS: Quick Remove via AJAX ───
+function posQuickRemove(form, event) {
+    event.preventDefault();
+    var formData = new FormData(form);
+    formData.append('X-Requested-With', 'XMLHttpRequest');
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) renderOrderItems(data.items, data.total);
+    })
+    .catch(function(err) { console.error('Error:', err); });
+    return false;
+}
+
+// ─── POS: Renderizar items del pedido ───
+function renderOrderItems(items, total) {
+    var container = document.getElementById('orderItems');
+    var totalEl = document.getElementById('orderTotal');
+    if (!container || !totalEl) return;
+
+    if (!items || items.length === 0) {
+        container.innerHTML = '<div class="pos-order-empty">' +
+            '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>' +
+            '<p>No hay productos aún</p><span class="text-xs text-muted">Toca un producto para agregarlo</span></div>';
+        totalEl.querySelector('strong').textContent = '$0';
+        updatePayButton(total);
+        return;
+    }
+
+    var html = '';
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        html += '<div class="pos-order-item" data-item-id="' + item.id + '">' +
+            '<div class="pos-order-item-info">' +
+                '<span class="pos-order-item-nombre">' + item.producto + '</span>' +
+                '<span class="pos-order-item-precio">$' + formatNumber(item.precio_unitario) + '/u</span>' +
+            '</div>' +
+            '<div class="pos-order-item-actions">' +
+                '<span class="pos-order-item-cantidad">x' + item.cantidad + '</span>' +
+                '<span class="pos-order-item-subtotal">$' + formatNumber(item.subtotal) + '</span>' +
+                '<form action="/sales/' + item.pedido_id + '/quick_remove/' + item.id + '" method="post" class="inline" onsubmit="return posQuickRemove(this, event)">' +
+                    '<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">' +
+                    '<button type="submit" class="btn btn-sm btn-ghost pos-remove-btn" title="Quitar uno">' +
+                        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+                    '</button>' +
+                '</form>' +
+            '</div></div>';
+    }
+    // Nota: Los items anulados no se incluyen en la respuesta JSON
+    // porque quick_add y quick_remove solo manejan items activos de pedidos abiertos.
+
+    container.innerHTML = html;
+    totalEl.querySelector('strong').textContent = '$' + formatNumber(total);
+    updatePayButton(total);
+}
+
+function formatNumber(n) {
+    return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function updatePayButton(total) {
+    var payBtn = document.querySelector('.pos-order-actions .btn-primary');
+    if (payBtn) {
+        var text = payBtn.innerHTML.replace(/\$[\d,]+/, '$' + formatNumber(total));
+        payBtn.innerHTML = text;
+    }
+}
+</script>
+{% endblock %}

@@ -131,9 +131,17 @@ class PedidoItem(db.Model):
     precio_unitario_cop = db.Column(db.Integer, nullable=False)
     subtotal_cop = db.Column(db.Integer, nullable=False)
 
+    # Anulación lógica (para pedidos ya pagados/cerrados)
+    anulado_en = db.Column(db.DateTime, nullable=True)
+    motivo_anulacion = db.Column(db.String(200), nullable=True)
+
     # Relaciones
     pedido = db.relationship('Pedido', back_populates='items')
     producto = db.relationship('Producto', back_populates='items')
+
+    @property
+    def anulado(self):
+        return self.anulado_en is not None
 
     def __repr__(self):
         return f'<Item {self.producto.nombre if self.producto else "?"} x{self.cantidad}>'
