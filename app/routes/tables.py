@@ -30,19 +30,13 @@ def open_ubicacion(ubicacion_id):
         ubicacion_id=ubicacion.id, estado='abierto'
     ).first()
     if pedido_existente:
-        flash(f'{ubicacion.nombre} ya tiene un pedido abierto.', 'warning')
-        return redirect(url_for('sales.detail', pedido_id=pedido_existente.id))
+        flash(f'{ubicacion.nombre} ya está ocupada.', 'warning')
+        return redirect(url_for('tables.index'))
 
-    # Marcar como ocupada y crear pedido
+    # Marcar como ocupada
     ubicacion.estado = 'ocupada'
     ubicacion.fecha_apertura = datetime.utcnow()
-
-    pedido = Pedido(
-        ubicacion_id=ubicacion.id,
-        total=0,
-    )
-    db.session.add(pedido)
     db.session.commit()
 
-    flash(f'{ubicacion.nombre} abierta. Pedido #{pedido.id} creado.', 'success')
-    return redirect(url_for('sales.detail', pedido_id=pedido.id))
+    flash(f'{ubicacion.nombre} marcada como ocupada.', 'success')
+    return redirect(url_for('tables.index'))

@@ -20,7 +20,7 @@ os.environ['DATABASE_URL'] = f'sqlite:///{TEST_DB}'
 os.environ['WTF_CSRF_ENABLED'] = 'False'
 
 from app import create_app
-from app.models import db, Usuario, Ubicacion, Producto, Insumo, Receta, TasaCambio, Gasto, Pedido, PedidoItem
+from app.models import db, Usuario, Ubicacion, Producto, Insumo, TasaCambio, Gasto, Pedido, PedidoItem
 from datetime import datetime, date
 
 PASS = "✅  PASS"
@@ -96,79 +96,7 @@ def run_tests():
          'inválido' in text.lower() or 'incorrect' in text.lower() or 'intente' in text.lower())
 
     # ══════════════════════════════════════════════
-    #  2. /recetas/
-    # ══════════════════════════════════════════════
-    print("\n── /recetas/ ──")
-
-    with app.app_context():
-        # Seed: insumo, productos, receta
-        ins = Insumo(nombre='Café test kg', unidad_medida='kg',
-                      costo_unitario_cop=72000, stock_actual=10, stock_minimo=2)
-        db.session.add(ins)
-        db.session.flush()
-
-        prod = Producto(nombre='Café Americano', categoria='bebida',
-                         precio_venta_cop=4500, descuenta_inventario=True)
-        prod2 = Producto(nombre='Capuchino', categoria='bebida',
-                          precio_venta_cop=6500, descuenta_inventario=True)
-        db.session.add_all([prod, prod2])
-        db.session.flush()
-
-        rec = Receta(producto_id=prod2.id, insumo_id=ins.id,
-                      cantidad_gramos=18.0, descripcion='base')
-        db.session.add(rec)
-        db.session.commit()
-
-        ins_id = ins.id
-        prod_id = prod.id
-        prod2_id = prod2.id
-        rec_id = rec.id
-
-    # Anon → redirect
-    resp = client.get('/recetas/')
-    test("GET /recetas/ (anon) → redirect", resp.status_code in (302, 303))
-
-    # Admin
-    login('admin@test.com', 'test123')
-    resp = client.get('/recetas/', follow_redirects=True)
-    ok, msg = assert_ok(resp, '/recetas/')
-    test("GET /recetas/ (admin) 200", ok, msg)
-
-    resp_text = resp.data.decode()
-    test("  → shows receta data",
-         'Capuchino' in resp_text and 'Café test kg' in resp_text)
-
-    # Employee → forbidden
-    login('emp@test.com', 'test123')
-    resp = client.get('/recetas/', follow_redirects=True)
-    test("GET /recetas/ (employee) → redirect (no perm)",
-         '/tables/' in resp.request.url or '/auth/' in resp.request.url)
-
-    # Create form (admin)
-    login('admin@test.com', 'test123')
-    resp = client.get('/recetas/create')
-    test("GET /recetas/create (admin)", resp.status_code == 200)
-
-    # POST create
-    resp = client.post('/recetas/create', data={
-        'producto_id': prod2_id,
-        'insumo_id': ins_id,
-        'cantidad_gramos': 18.0,
-        'descripcion': 'extra',
-    }, follow_redirects=True)
-    test("POST /recetas/create redirects", resp.status_code == 200)
-    test("  → flash success", 'Receta' in resp.data.decode())
-
-    # Edit form
-    resp = client.get(f'/recetas/{rec_id}/edit')
-    test(f"GET /recetas/{rec_id}/edit", resp.status_code == 200)
-
-    # 500 check
-    resp = client.get('/recetas/999999/edit')
-    test("GET /recetas/999999/edit → 404", resp.status_code == 404)
-
-    # ══════════════════════════════════════════════
-    #  3. /tasas/
+    #  2. /tasas/
     # ══════════════════════════════════════════════
     print("\n── /tasas/ ──")
 
@@ -209,6 +137,29 @@ def run_tests():
     # Edit form
     resp = client.get(f'/tasas/{tasa_id}/edit')
     test(f"GET /tasas/{tasa_id}/edit", resp.status_code == 200)
+
+    # ══════════════════════════════════════════════
+    #  3. SEED: Productos & insumos for sales + inventory tests
+    # ══════════════════════════════════════════════
+    print("\n── Seed data ──")
+
+    with app.app_context():
+        ins = Insumo(nombre='Café test kg', unidad_medida='kg',
+                      costo_unitario_cop=72000, stock_actual=10, stock_minimo=2)
+        db.session.add(ins)
+        db.session.flush()
+
+        prod = Producto(nombre='Café Americano', categoria='bebida',
+                         precio_venta_cop=4500, descuenta_inventario=True)
+        prod2 = Producto(nombre='Capuchino', categoria='bebida',
+                          precio_venta_cop=6500, descuenta_inventario=True)
+        db.session.add_all([prod, prod2])
+        db.session.commit()
+
+        ins_id = ins.id
+        prod_id = prod.id
+        prod2_id = prod2.id
+        test("Seed: insumo + productos", True)
 
     # ══════════════════════════════════════════════
     #  4. /sales/ + POS

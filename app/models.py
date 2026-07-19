@@ -210,29 +210,6 @@ class Gasto(db.Model):
 
 
 # ──────────────────────────────────────────────
-#  RECETA (Fase 4)
-#  Vincula un producto con los insumos que consume
-#  y la cantidad en gramos por unidad vendida.
-#  Ej: Café Americano → 18g de Café en grano.
-#  Permite múltiples recetas por producto (ej: receta base + extra).
-# ──────────────────────────────────────────────
-class Receta(db.Model):
-    __tablename__ = 'recetas'
-
-    id = db.Column(db.Integer, primary_key=True)
-    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
-    insumo_id = db.Column(db.Integer, db.ForeignKey('insumos.id'), nullable=False)
-    cantidad_gramos = db.Column(db.Float, nullable=False, default=0.0)  # gramos del insumo por 1 unidad de producto
-    descripcion = db.Column(db.String(100), nullable=True)  # ej: "base", "extra shot"
-
-    producto = db.relationship('Producto', foreign_keys=[producto_id])
-    insumo = db.relationship('Insumo', foreign_keys=[insumo_id])
-
-    def __repr__(self):
-        return f'<Receta {self.producto.nombre if self.producto else "?"} → {self.cantidad_gramos}g {self.insumo.nombre if self.insumo else "?"}>'
-
-
-# ──────────────────────────────────────────────
 #  FACTURA (control de cuentas por pagar)
 #  Registro de facturas de proveedores con
 #  control de fechas de vencimiento.
