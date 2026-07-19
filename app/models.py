@@ -233,6 +233,30 @@ class Receta(db.Model):
 
 
 # ──────────────────────────────────────────────
+#  FACTURA (control de cuentas por pagar)
+#  Registro de facturas de proveedores con
+#  control de fechas de vencimiento.
+# ──────────────────────────────────────────────
+class Factura(db.Model):
+    __tablename__ = 'facturas'
+
+    id = db.Column(db.Integer, primary_key=True)
+    referencia = db.Column(db.String(50), unique=True, nullable=False)
+    empresa = db.Column(db.String(100), nullable=False)
+    fecha_recibida = db.Column(db.Date, nullable=False)
+    dias_credito = db.Column(db.Integer, nullable=False, default=0)
+    fecha_vencimiento = db.Column(db.Date, nullable=False)  # fecha_recibida + dias_credito
+    estado = db.Column(db.String(20), nullable=False, default='pendiente')  # pendiente / pagada
+    fecha_pago = db.Column(db.Date, nullable=True)
+    monto = db.Column(db.Integer, nullable=True)  # en COP
+    notas = db.Column(db.String(300), nullable=True)
+    creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<Factura {self.referencia} — {self.empresa} — {self.estado}>'
+
+
+# ──────────────────────────────────────────────
 #  TASA DE CAMBIO (Fase 4)
 #  Registro de tasas de referencia para conversión
 #  entre monedas. NO se usa automáticamente en

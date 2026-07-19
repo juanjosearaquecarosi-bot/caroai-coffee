@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Facturas · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Facturas</h1>
+        <p>Control de cuentas por pagar &mdash; proveedores y fechas de vencimiento</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{% if show_form %}{{ url_for('facturas.index') }}{% else %}{{ url_for('facturas.nueva') }}{% endif %}"
+           class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            {% if show_form %}Ver facturas{% else %}Nueva factura{% endif %}
+        </a>
+    </div>
+</div>
+
+<!-- ─── Alerta de próximas a vencer ─── -->
+{% if por_vencer and por_vencer|length > 0 and not show_form %}
+<div class="callout callout-warning mb-3">
+    <strong>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        {% if filtro_por_vencer %}
+        Facturas próximas a vencer
+        {% else %}
+        {{ por_vencer|length }} factura(s) por vencer en los próximos {{ umbral }} días
+        {% endif %}
+    </strong>
+    <ul style="margin-top: 0.5rem;">
+        {% for f in por_vencer %}
+        <li>
+            <strong>{{ f.referencia }}</strong> &mdash; {{ f.empresa }}
+            &middot; Vence <strong>{{ f.fecha_vencimiento.strftime('%d/%m/%Y') }}</strong>
+            {% if f.monto %} &middot; ${{ "{:,}".format(f.monto) }}{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- ─── Formulario de nueva factura ─── -->
+{% if show_form %}
+<div class="row form-card">
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="form-group">
+                    <label for="referencia" class="form-label">Referencia *</label>
+                    <input type="text" class="form-input" id="referencia" name="referencia"
+                           placeholder="Ej: FAC-001-2026" required maxlength="50">
+                </div>
+
+                <div class="form-group">
+                    <label for="empresa" class="form-label">Empresa / Proveedor *</label>
+                    <input type="text" class="form-input" id="empresa" name="empresa"
+                           placeholder="Ej: Alpina S.A." required maxlength="100">
+                </div>
+
+                <div class="row row-cols-2">
+                    <div class="form-group">
+                        <label for="fecha_recibida" class="form-label">Fecha recibida *</label>
+                        <input type="date" class="form-input" id="fecha_recibida" name="fecha_recibida"
+                               value="{{ hoy.isoformat() if hoy else '' }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="dias_credito" class="form-label">Días de crédito</label>
+                        <input type="number" class="form-input" id="dias_credito" name="dias_credito"
+                               value="30" min="0" max="365">
+                        <span class="form-hint">La fecha de vencimiento se calcula automáticamente.</span>
+                    </div>
+                </div>
+
+                <div class="row row-cols-2">
+                    <div class="form-group">
+                        <label for="monto" class="form-label">Monto COP <span class="text-muted" style="font-weight: 400;">(opcional)</span></label>
+                        <input type="number" class="form-input" id="monto" name="monto"
+                               placeholder="0" min="0">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="notas" class="form-label">Notas <span class="text-muted" style="font-weight: 400;">(opcional)</span></label>
+                    <input type="text" class="form-input" id="notas" name="notas"
+                           placeholder="Ej: Pago a 30 días, factura electrónica" maxlength="300">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Registrar factura
+                    </button>
+                    <a href="{{ url_for('facturas.index') }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% else %}
+
+<!-- ─── Sección: Pendientes ─── -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2.5" stroke-linecap="round" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            Pendientes
+        </h3>
+        <span class="badge badge-stock-bajo">{{ pendientes|length }}</span>
+    </div>
+    {% if pendientes %}
+    <div class="table-wrapper" style="border: none; border-radius: 0;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Referencia</th>
+                    <th>Empresa</th>
+                    <th>Recibida</th>
+                    <th>Vence</th>
+                    <th>Días</th>
+                    <th>Monto</th>
+                    <th>Notas</th>
+                    <th class="cell-actions"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in pendientes %}
+                <tr class="{% if f.fecha_vencimiento <= hoy %}callout-danger{% endif %}">
+                    <td><strong>{{ f.referencia }}</strong></td>
+                    <td>{{ f.empresa }}</td>
+                    <td class="text-small">{{ f.fecha_recibida.strftime('%d/%m/%Y') }}</td>
+                    <td class="text-small">
+                        <strong class="{% if f.fecha_vencimiento <= hoy %}text-danger{% elif fecha_limite is defined and f.fecha_vencimiento <= fecha_limite %}text-warning{% endif %}">
+                            {{ f.fecha_vencimiento.strftime('%d/%m/%Y') }}
+                        </strong>
+                    </td>
+                    <td class="mono-number">{{ (f.fecha_vencimiento - hoy).days }}</td>
+                    <td class="mono-number">{% if f.monto %}${{ "{:,}".format(f.monto) }}{% else %}—{% endif %}</td>
+                    <td class="text-muted text-small">{{ f.notas or '—' }}</td>
+                    <td class="cell-actions">
+                        <form action="{{ url_for('facturas.pagar', id=f.id) }}" method="post"
+                              onsubmit="return confirm('¿Marcar {{ f.referencia }} de {{ f.empresa }} como pagada?');" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-success">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                Pagar
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body empty-state">
+        <span class="empty-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </span>
+        <h3>Sin facturas pendientes</h3>
+        <p>No hay cuentas pendientes por pagar.</p>
+        <a href="{{ url_for('facturas.nueva') }}" class="btn btn-primary mt-2">Registrar factura</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ─── Sección: Pagadas ─── -->
+<div class="card">
+    <div class="card-header">
+        <h3>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2.5" stroke-linecap="round" style="vertical-align: middle; margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg>
+            Pagadas
+        </h3>
+        <span class="badge badge-pagado">{{ pagadas|length }}</span>
+    </div>
+    {% if pagadas %}
+    <div class="table-wrapper" style="border: none; border-radius: 0;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Referencia</th>
+                    <th>Empresa</th>
+                    <th>Recibida</th>
+                    <th>Vencía</th>
+                    <th>Pagada</th>
+                    <th>Monto</th>
+                    <th>Notas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in pagadas %}
+                <tr>
+                    <td><strong>{{ f.referencia }}</strong></td>
+                    <td>{{ f.empresa }}</td>
+                    <td class="text-small">{{ f.fecha_recibida.strftime('%d/%m/%Y') }}</td>
+                    <td class="text-small">{{ f.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
+                    <td class="text-small">{{ f.fecha_pago.strftime('%d/%m/%Y') if f.fecha_pago else '—' }}</td>
+                    <td class="mono-number">{% if f.monto %}${{ "{:,}".format(f.monto) }}{% else %}—{% endif %}</td>
+                    <td class="text-muted text-small">{{ f.notas or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body empty-state">
+        <span class="empty-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <h3>Sin pagos registrados</h3>
+        <p>Las facturas pagadas aparecerán aquí.</p>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
