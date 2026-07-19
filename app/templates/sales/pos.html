@@ -27,7 +27,9 @@
                     {% endif %}
                 </span>
                 <span class="pos-espacio-nombre">{{ u.nombre }}</span>
-                <span class="pos-espacio-estado {% if u.estado == 'ocupada' %}dot-warning{% else %}dot-success{% endif %}"></span>
+                {% set u_pedidos = u.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
+                {% set u_tiene_items = u_pedidos and u_pedidos[0].items|length > 0 %}
+                <span class="pos-espacio-estado {% if u.estado == 'libre' %}dot-success{% elif u_tiene_items %}dot-primary{% else %}dot-warning{% endif %}"></span>
             </a>
             {% endfor %}
         </div>
@@ -73,19 +75,65 @@
                         <input type="text" class="pos-search-input" id="productSearch" placeholder="Buscar producto…" oninput="filterProducts(this.value)">
                     </div>
                 </div>
+                <style>
+                    .pos-categoria-header {
+                        grid-column: 1 / -1;
+                        display: flex;
+                        align-items: center;
+                        gap: 0.5rem;
+                        padding: 0.75rem 0 0.375rem;
+                        font-family: var(--font-display);
+                        font-size: 1rem;
+                        font-weight: 600;
+                        color: var(--color-text-secondary);
+                        border-bottom: 1px solid var(--color-border-light);
+                        margin-bottom: 0.25rem;
+                    }
+                    .pos-categoria-header:first-child { padding-top: 0; }
+                    .pos-categoria-icon { font-size: 1.125rem; }
+                    .mesa-card .badge.badge-pagado {
+                        background: var(--color-info-bg);
+                        color: var(--color-info-text);
+                    }
+                    .dot-primary { background: var(--color-accent); }
+                </style>
+                {% set bebidas = productos|selectattr('categoria', 'equalto', 'bebida')|list %}
+                {% set comidas = productos|selectattr('categoria', 'equalto', 'comida')|list %}
                 <div class="pos-catalogo-grid" id="productGrid">
-                    {% for producto in productos %}
+                    {% if bebidas %}
+                    <div class="pos-categoria-header" data-categoria="bebida">
+                        <span class="pos-categoria-icon">☕</span>
+                        Bebidas
+                    </div>
+                    {% for producto in bebidas %}
                     <form action="{{ url_for('sales.quick_add', pedido_id=pedido.id, producto_id=producto.id) }}" method="post" class="product-card-form"
                           onsubmit="return posQuickAdd(this, event)">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="cantidad" value="1">
                         <button type="submit" class="product-card" data-search="{{ producto.nombre|lower }} {{ producto.categoria|lower }}">
-                            <span class="product-card-categoria">{{ producto.categoria }}</span>
                             <span class="product-card-nombre">{{ producto.nombre }}</span>
                             <span class="product-card-precio">${{ "{:,}".format(producto.precio_venta_cop) }}</span>
                         </button>
                     </form>
                     {% endfor %}
+                    {% endif %}
+                    {% if comidas %}
+                    <div class="pos-categoria-header" data-categoria="comida">
+                        <span class="pos-categoria-icon">🍰</span>
+                        Comidas
+                    </div>
+                    {% for producto in comidas %}
+                    <form action="{{ url_for('sales.quick_add', pedido_id=pedido.id, producto_id=producto.id) }}" method="post" class="product-card-form"
+                          onsubmit="return posQuickAdd(this, event)">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="cantidad" value="1">
+                        <button type="submit" class="product-card" data-search="{{ producto.nombre|lower }} {{ producto.categoria|lower }}">
+                            <span class="product-card-nombre">{{ producto.nombre }}</span>
+                            <span class="product-card-precio">${{ "{:,}".format(producto.precio_venta_cop) }}</span>
+                        </button>
+                    </form>
+                    {% endfor %}
+                    {% endif %}
                 </div>
             </div>
 
@@ -227,6 +275,22 @@
         <div class="stat-value">{{ ubicaciones|selectattr('estado', 'equalto', 'libre')|list|length }}</div>
         <div class="stat-label">Libres</div>
     </div>
+    {% set ocupadas_con_items = namespace(count=0) %}
+    {% for u in ubicaciones %}
+      {% if u.estado == 'ocupada' %}
+        {% set uu_pedidos = u.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
+        {% if uu_pedidos and uu_pedidos[0].items|length > 0 %}
+          {% set ocupadas_con_items.count = ocupadas_con_items.count + 1 %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    <div class="card stat-card">
+        <span class="stat-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-info)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        </span>
+        <div class="stat-value stat-value-info">{{ ocupadas_con_items.count }}</div>
+        <div class="stat-label">Por cobrar</div>
+    </div>
     <div class="card stat-card">
         <span class="stat-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-warning)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
@@ -256,9 +320,13 @@
             {% endif %}
         </div>
         <div class="mesa-numero">{{ ubicacion.nombre }}</div>
+        {% set oc_pedidos = ubicacion.pedidos|selectattr('estado', 'equalto', 'abierto')|list %}
+        {% set oc_tiene_items = oc_pedidos and oc_pedidos[0].items|length > 0 %}
         <div class="mesa-estado">
             {% if ubicacion.estado == 'libre' %}
             <span class="badge badge-libre"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Libre</span>
+            {% elif oc_tiene_items %}
+            <span class="badge badge-pagado"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Por cobrar</span>
             {% else %}
             <span class="badge badge-ocupada"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Ocupada</span>
             {% endif %}
@@ -269,10 +337,13 @@
             {% else %}&nbsp;{% endif %}
         </div>
         <div class="mesa-actions">
-            <a href="{{ url_for('sales.pos_ubicacion', ubicacion_id=ubicacion.id) }}" class="btn {% if ubicacion.estado == 'libre' %}btn-success{% else %}btn-primary{% endif %}">
+            <a href="{{ url_for('sales.pos_ubicacion', ubicacion_id=ubicacion.id) }}" class="btn {% if ubicacion.estado == 'libre' %}btn-success{% elif oc_tiene_items %}btn-warning{% else %}btn-primary{% endif %}">
                 {% if ubicacion.estado == 'libre' %}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Abrir
+                {% elif oc_tiene_items %}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Cobrar
                 {% else %}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
                 Pedido

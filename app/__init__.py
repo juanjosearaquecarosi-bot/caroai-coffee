@@ -70,7 +70,7 @@ def create_app():
 
     @app.route('/')
     def index():
-        return redirect(url_for('auth.login'))
+        return redirect(url_for('sales.pos_index'))
     # CLI command to create admin user
     @app.cli.command("create-admin")
     def create_admin():

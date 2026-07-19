@@ -54,13 +54,14 @@ def seed():
             Ubicacion(nombre='Mesa 3', tipo='mesa'),
             Ubicacion(nombre='Mesa 4', tipo='mesa'),
             Ubicacion(nombre='Mesa 5', tipo='mesa'),
+            Ubicacion(nombre='Mesa 6', tipo='mesa'),
             Ubicacion(nombre='Barra', tipo='barra'),
             Ubicacion(nombre='Puff 1', tipo='puff'),
             Ubicacion(nombre='Puff 2', tipo='puff'),
         ]
         db.session.add_all(ubicaciones)
         db.session.commit()
-        print("✔  8 ubicaciones (5 mesas + 1 barra + 2 puffs)")
+        print("✔  9 ubicaciones (6 mesas + 1 barra + 2 puffs)")
 
         # ────────────────────────────────────────
         #  3. INSUMOS

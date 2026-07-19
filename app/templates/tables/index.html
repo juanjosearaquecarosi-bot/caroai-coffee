@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Ubicaciones · Caroai Café{% endblock %}
+{% block title %}Mesas · Caroai Café{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div>
-        <h1>Ubicaciones</h1>
+        <h1>Mesas</h1>
         <p>Mesas, barra y puffs del café &mdash; abre una para comenzar</p>
     </div>
 </div>
@@ -30,7 +30,7 @@
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         </span>
         <div class="stat-value">{{ ubicaciones|length }}</div>
-        <div class="stat-label">Total espacios</div>
+        <div class="stat-label">Total mesas</div>
     </div>
 </div>
 
@@ -97,7 +97,7 @@
             <span class="empty-icon">
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             </span>
-            <p>No hay ubicaciones registradas. Agréguelas desde la consola para comenzar.</p>
+            <p>No hay mesas registradas. Agréguelas desde la consola para comenzar.</p>
         </div>
     </div>
     {% endfor %}

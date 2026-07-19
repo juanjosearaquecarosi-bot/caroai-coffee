@@ -31,8 +31,20 @@
             <tbody>
                 {% for receta in recetas %}
                 <tr>
-                    <td><strong>{{ receta.producto.nombre }}</strong></td>
-                    <td>{{ receta.insumo.nombre }}</td>
+                    <td>
+                        {% if receta.producto %}
+                        <strong>{{ receta.producto.nombre }}</strong>
+                        {% else %}
+                        <span class="text-danger">⚠️ Producto eliminado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if receta.insumo %}
+                        {{ receta.insumo.nombre }}
+                        {% else %}
+                        <span class="text-danger">⚠️ Insumo eliminado</span>
+                        {% endif %}
+                    </td>
                     <td><strong class="mono-number">{{ receta.cantidad_gramos }}g</strong></td>
                     <td class="text-muted text-small">{{ receta.descripcion or '—' }}</td>
                     <td class="cell-actions">
