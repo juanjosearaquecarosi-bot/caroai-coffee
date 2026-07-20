@@ -66,6 +66,8 @@ if __name__ == '__main__':
             'pedidos': [
                 ('moneda_pago', 'VARCHAR(10)'),
                 ('metodo_pago', 'VARCHAR(20)'),
+                ('tasa_aplicada', 'FLOAT'),
+                ('total_pagado_moneda', 'FLOAT'),
                 ('observaciones', 'VARCHAR(300)'),
             ],
             'pedido_items': [

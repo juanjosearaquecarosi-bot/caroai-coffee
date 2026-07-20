@@ -101,7 +101,9 @@ class Pedido(db.Model):
 
     # Información de pago
     moneda_pago = db.Column(db.String(10), nullable=True)     # VES / COP / USD
-    metodo_pago = db.Column(db.String(20), nullable=True)     # efectivo / binance / bancolombia
+    metodo_pago = db.Column(db.String(20), nullable=True)     # efectivo / binance / pago_movil
+    tasa_aplicada = db.Column(db.Float, nullable=True)        # tasa usada para convertir: 1 USD = X COP o 1 BS = X COP
+    total_pagado_moneda = db.Column(db.Float, nullable=True)  # total pagado en la moneda seleccionada (USD, BS o COP)
     observaciones = db.Column(db.String(300), nullable=True)
 
     # Relaciones

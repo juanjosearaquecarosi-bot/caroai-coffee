@@ -1,8 +1,40 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, abort
 from flask_login import login_required
-from ..models import db, Mesa, Pedido, PedidoItem, Producto
+from ..models import db, Mesa, Pedido, PedidoItem, Producto, TasaCambio
 from ..utils.decorators import role_required
-from datetime import datetime
+from datetime import datetime, date
+
+
+def _get_tasas():
+    """Retorna (tasa_usd, tasa_bs): cuántos COP vale 1 USD y 1 BS."""
+    tasa_usd = 4200.0
+    tasa_bs = 6.0
+
+    t = TasaCambio.query.filter_by(
+        moneda_origen='USD', moneda_destino='COP'
+    ).order_by(TasaCambio.vigente_desde.desc()).first()
+    if t:
+        tasa_usd = t.tasa
+    else:
+        t = TasaCambio.query.filter_by(
+            moneda_origen='COP', moneda_destino='USD'
+        ).order_by(TasaCambio.vigente_desde.desc()).first()
+        if t and t.tasa > 0:
+            tasa_usd = round(1 / t.tasa, 2)
+
+    t = TasaCambio.query.filter_by(
+        moneda_origen='VES', moneda_destino='COP'
+    ).order_by(TasaCambio.vigente_desde.desc()).first()
+    if t:
+        tasa_bs = t.tasa
+    else:
+        t = TasaCambio.query.filter_by(
+            moneda_origen='COP', moneda_destino='VES'
+        ).order_by(TasaCambio.vigente_desde.desc()).first()
+        if t and t.tasa > 0:
+            tasa_bs = round(1 / t.tasa, 2)
+
+    return tasa_usd, tasa_bs
 
 pos_bp = Blueprint('pos', __name__, url_prefix='/pos')
 
@@ -83,9 +115,12 @@ def mesa(mesa_id):
     if pedido:
         total_cop = sum(i.subtotal_cop for i in pedido.items)
 
+    tasa_usd, tasa_bs = _get_tasas()
+
     return render_template('pos/mesa.html',
                            mesa=mesa, pedido=pedido,
-                           productos=productos, total_cop=total_cop)
+                           productos=productos, total_cop=total_cop,
+                           tasa_usd=tasa_usd, tasa_bs=tasa_bs)
 
 
 # ══════════════════════════════════════════════
@@ -207,13 +242,18 @@ def charge(mesa_id):
 
     moneda_pago = request.form.get('moneda_pago', 'COP')
     metodo_pago = request.form.get('metodo_pago', 'efectivo')
+    tasa_str = request.form.get('tasa_aplicada', '').strip()
+    total_moneda_str = request.form.get('total_pagado_moneda', '').strip()
     observaciones = request.form.get('observaciones', '').strip() or None
 
     now = datetime.utcnow()
-    pedido.total = sum(i.subtotal_cop for i in pedido.items)
+    total_cop = sum(i.subtotal_cop for i in pedido.items)
+    pedido.total = total_cop
     pedido.estado = 'pagado'
     pedido.moneda_pago = moneda_pago
     pedido.metodo_pago = metodo_pago
+    pedido.tasa_aplicada = float(tasa_str) if tasa_str else (1.0 if moneda_pago == 'COP' else None)
+    pedido.total_pagado_moneda = float(total_moneda_str) if total_moneda_str else None
     pedido.observaciones = observaciones
     pedido.pagado_en = now
 
@@ -223,7 +263,8 @@ def charge(mesa_id):
 
     db.session.commit()
 
-    flash(f'✅ Mesa {mesa.nombre} cobrada · ${pedido.total:,} COP', 'success')
+    flash_moneda = f'{moneda_pago} {total_moneda_str}' if total_moneda_str else f'${total_cop:,} COP'
+    flash(f'✅ {mesa.nombre} cobrada · {flash_moneda}', 'success')
     return redirect(url_for('pos.index'))
 
 

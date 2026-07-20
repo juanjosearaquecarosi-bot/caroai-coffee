@@ -33,9 +33,13 @@
         <div class="card-header"><h3>Pago</h3></div>
         <div class="card-body">
             <div class="info-list">
-                <div class="info-row"><span class="info-label">Moneda</span><span class="info-value">{{ pedido.moneda_pago or 'COP' }}</span></div>
-                <div class="info-row"><span class="info-label">Método</span><span class="info-value capitalize"><span class="badge {% if pedido.metodo_pago=='efectivo' %}badge-libre{% elif pedido.metodo_pago=='binance' %}badge-info{% else %}badge-ocupada{% endif %}">{{ {'efectivo':'💵 Efectivo','binance':' Binance','bancolombia':'🏦 Bancolombia'}.get(pedido.metodo_pago, pedido.metodo_pago) }}</span></span></div>
-                {% if pedido.metodo_pago == 'pagado' and pedido.pagado_en %}
+                <div class="info-row"><span class="info-label">Moneda</span><span class="info-value">{{ {'COP':'🇨🇴 COP','USD':'🇺🇸 USD','BS':'🇻🇪 BS'}.get(pedido.moneda_pago, pedido.moneda_pago or 'COP') }}</span></div>
+                <div class="info-row"><span class="info-label">Método</span><span class="info-value capitalize"><span class="badge {% if pedido.metodo_pago=='efectivo' %}badge-libre{% elif pedido.metodo_pago=='binance' %}badge-info{% else %}badge-ocupada{% endif %}">{{ {'efectivo':'💵 Efectivo','binance':' Binance','pago_movil':'📱 Pago móvil'}.get(pedido.metodo_pago, pedido.metodo_pago) }}</span></span></div>
+                {% if pedido.moneda_pago and pedido.moneda_pago != 'COP' and pedido.tasa_aplicada %}
+                <div class="info-row"><span class="info-label">Tasa aplicada</span><span class="info-value">1 {{ pedido.moneda_pago }} = {{ pedido.tasa_aplicada }} COP</span></div>
+                <div class="info-row"><span class="info-label">Total pagado</span><span class="info-value" style="font-weight:700;">{{ pedido.total_pagado_moneda|round(2) if pedido.total_pagado_moneda else '' }} {{ pedido.moneda_pago }}</span></div>
+                {% endif %}
+                {% if pedido.pagado_en %}
                 <hr class="divider" style="margin:0.25rem 0;">
                 <div class="info-row"><span class="info-label">Pagado</span><span class="info-value text-small">{{ pedido.pagado_en.strftime('%H:%M %d/%m/%Y') }}</span></div>
                 {% endif %}
