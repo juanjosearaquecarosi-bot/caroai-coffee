@@ -125,7 +125,8 @@ def mesa(mesa_id):
 
     return render_template('pos/mesa.html',
                            mesa=mesa, pedido=pedido,
-                           catalogo=catalogo, total_cop=total_cop,
+                           catalogo=catalogo, productos=productos,
+                           total_cop=total_cop,
                            tasa_usd=tasa_usd, tasa_bs=tasa_bs)
 
 
