@@ -11,7 +11,7 @@ from app.models import (
     TasaCambio, Gasto,
 )
 from datetime import datetime, date
-from app.utils.excel_import import import_productos
+
 
 
 def _minimal_app():
@@ -107,8 +107,15 @@ def seed(app=None):
 
         # 6. PRODUCTOS (solo si no existen)
         if Producto.query.count() == 0:
-            ins, act = import_productos()
-            if ins == 0 and act == 0:
+            try:
+                from app.utils.excel_import import import_productos
+                ins, act = import_productos()
+                if ins == 0 and act == 0:
+                    raise ImportError('No Excel found')
+                print(f"✔  {ins} productos insertados desde Excel, {act} actualizados.")
+            except Exception as e:
+                print(f"   ℹ️  Importación desde Excel: {e}")
+                print("   → Usando productos de ejemplo como fallback.")
                 # Si no hay Excel, crear productos de ejemplo
                 productos = [
                     Producto(nombre='Espresso', tipo='bebida', precio_cop=4000, precio_venta_cop=4000, precio_usd=1.11, precio_bs=888.89),
@@ -119,9 +126,7 @@ def seed(app=None):
                 ]
                 db.session.add_all(productos)
                 db.session.commit()
-                print("✔  5 productos de ejemplo (fallback, no se encontró Excel)")
-            else:
-                print(f"✔  {ins} productos insertados desde Excel, {act} actualizados.")
+                print("✔  5 productos de ejemplo creados.")
         else:
             print(f"ℹ️  Productos ya existen ({Producto.query.count()}) — omitido.")
 
