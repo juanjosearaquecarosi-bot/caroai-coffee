@@ -4,6 +4,7 @@ seed_data.py  —  Inicializa la base de datos con datos de prueba.
 Uso:  python seed_data.py
 """
 
+import os
 from flask import Flask
 from app.models import (
     db, Usuario, Mesa, Producto, Insumo,
@@ -16,7 +17,10 @@ from app.utils.excel_import import import_productos
 def _minimal_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'seed-only'
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///caroai.db'
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url and db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///caroai.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db.init_app(app)
     return app
