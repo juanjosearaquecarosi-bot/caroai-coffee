@@ -61,45 +61,71 @@ if __name__ == '__main__':
         print('🔧 Agregando columnas faltantes en tablas existentes...')
 
         # Columnas que podrían no existir en schemas antiguos
-        # Formato: { 'tabla': [ (col, tipo_sql), ... ] }
-        column_fixes = {
-            'pedidos': [
-                ('moneda_pago', 'VARCHAR(10)'),
-                ('metodo_pago', 'VARCHAR(20)'),
-                ('tasa_aplicada', 'FLOAT'),
-                ('total_pagado_moneda', 'FLOAT'),
-                ('observaciones', 'VARCHAR(300)'),
-            ],
-            'pedido_items': [
-                ('anulado_en', 'TIMESTAMP'),
-                ('motivo_anulacion', 'VARCHAR(200)'),
-            ],
-            'productos': [
-                ('precio_usd', 'FLOAT'),
-                ('precio_bs', 'FLOAT'),
-                ('precio_venta_cop', 'INTEGER'),
-                ('descuenta_inventario', 'BOOLEAN'),
-                ('insumo_id', 'INTEGER'),
-            ],
-        }
+        # Formato: { 'tabla': [ (col, tipo_sql, es_fk, ref_table, ref_col), ... ] }
+        #   es_fk=True significa: agregar como NULL, luego NOT NULL, y crear FK en Postgres
+        column_fixes = [
+            # (tabla, col, tipo_sql, es_fk, ref_table, ref_col, default_val)
+            ('pedidos', 'mesa_id', 'INTEGER', True, 'mesas', 'id', 1),
+            ('pedidos', 'moneda_pago', 'VARCHAR(10)', False, None, None, None),
+            ('pedidos', 'metodo_pago', 'VARCHAR(20)', False, None, None, None),
+            ('pedidos', 'tasa_aplicada', 'FLOAT', False, None, None, None),
+            ('pedidos', 'total_pagado_moneda', 'FLOAT', False, None, None, None),
+            ('pedidos', 'observaciones', 'VARCHAR(300)', False, None, None, None),
+            ('pedido_items', 'anulado_en', 'TIMESTAMP', False, None, None, None),
+            ('pedido_items', 'motivo_anulacion', 'VARCHAR(200)', False, None, None, None),
+            ('productos', 'precio_usd', 'FLOAT', False, None, None, None),
+            ('productos', 'precio_bs', 'FLOAT', False, None, None, None),
+            ('productos', 'precio_venta_cop', 'INTEGER', False, None, None, 0),
+            ('productos', 'descuenta_inventario', 'BOOLEAN', False, None, None, False),
+            ('productos', 'insumo_id', 'INTEGER', False, None, None, None),
+        ]
 
-        for table, columns in column_fixes.items():
+        for table, col_name, col_type, es_fk, ref_table, ref_col, default_val in column_fixes:
             if table in tables:
                 existing = {c['name'] for c in insp.get_columns(table)}
-                for col_name, col_type in columns:
-                    if col_name not in existing:
-                        if engine_name == 'postgresql':
-                            # Verificar si es FK o tiene default
-                            nullable = 'NULL' if col_name == 'insumo_id' else 'NOT NULL'
-                            default = ''
+                if col_name not in existing:
+                    if engine_name == 'postgresql' and es_fk:
+                        # FK columns: add as NULL first, fill default, then NOT NULL + FK
+                        print(f'  → Agregando {table}.{col_name} como NULLABLE (FK pendiente)...')
+                        db.session.execute(text(
+                            f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type} NULL'
+                        ))
+                        db.session.commit()
+                        print(f'    → Asignando valor por defecto ({default_val}) a filas existentes...')
+                        db.session.execute(text(
+                            f'UPDATE {table} SET {col_name} = {default_val} WHERE {col_name} IS NULL'
+                        ))
+                        db.session.commit()
+                        print(f'    → Estableciendo NOT NULL...')
+                        db.session.execute(text(
+                            f'ALTER TABLE {table} ALTER COLUMN {col_name} SET NOT NULL'
+                        ))
+                        db.session.commit()
+                        print(f'    → Agregando FK {table}.{col_name} → {ref_table}.{ref_col}...')
+                        fk_name = f'fk_{table}_{col_name}'
+                        db.session.execute(text(
+                            f'ALTER TABLE {table} ADD CONSTRAINT {fk_name} '
+                            f'FOREIGN KEY ({col_name}) REFERENCES {ref_table}({ref_col})'
+                        ))
+                        db.session.commit()
+                        print(f'  ✅ {table}.{col_name} agregada con FK a {ref_table}.{ref_col}.')
+                    elif engine_name == 'postgresql':
+                        # Columnas regulares: nullable logic
+                        nullable = 'NULL'
+                        default = ''
+                        if default_val is not None:
+                            # Has default value
                             if col_name == 'descuenta_inventario':
                                 default = ' DEFAULT FALSE'
+                                nullable = 'NOT NULL'
                             elif col_name == 'precio_venta_cop':
                                 default = ' DEFAULT 0'
-                            sql = f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type} {nullable}{default}'
+                                nullable = 'NOT NULL'
+                            else:
+                                nullable = 'NULL'
                         else:
-                            # SQLite no soporta ADD COLUMN con NOT NULL sin default
-                            sql = f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type}'
+                            nullable = 'NULL'
+                        sql = f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type} {nullable}{default}'
                         try:
                             db.session.execute(text(sql))
                             db.session.commit()
@@ -108,7 +134,17 @@ if __name__ == '__main__':
                             db.session.rollback()
                             print(f'  ⚠️ {table}.{col_name}: {e}')
                     else:
-                        print(f'  ✅ {table}.{col_name} ya existe.')
+                        # SQLite
+                        sql = f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type}'
+                        try:
+                            db.session.execute(text(sql))
+                            db.session.commit()
+                            print(f'  ✅ {table}.{col_name} agregada.')
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f'  ⚠️ {table}.{col_name}: {e}')
+                else:
+                    print(f'  ✅ {table}.{col_name} ya existe.')
             else:
                 print(f'  ℹ️  Tabla {table} no existe (se creará con create_all).')
 
