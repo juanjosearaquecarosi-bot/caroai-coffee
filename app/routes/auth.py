@@ -25,8 +25,8 @@ def login():
             flash('Inicio de sesión exitoso.', 'success')
             next_page = request.args.get('next')
             return redirect(next_page or url_for('pos.index'))
-        else:
-            flash('Correo electrónico o contraseña inválidos.', 'danger')
+
+        flash('Correo electrónico o contraseña inválidos.', 'danger')
 
     return render_template('auth/login.html')
 
