@@ -62,7 +62,8 @@ if __name__ == '__main__':
 
         # Columnas que podrían no existir en schemas antiguos
         # Formato: { 'tabla': [ (col, tipo_sql, es_fk, ref_table, ref_col), ... ] }
-        #   es_fk=True significa: agregar como NULL, luego NOT NULL, y crear FK en Postgres
+        #   es_fk=True significa: agregar como NULL, luego NOT NULL (si default_val no es None), y crear FK en Postgres
+        #   es_fk=True + default_val=None = agregar como NULL, crear FK (columna nullable)
         column_fixes = [
             # (tabla, col, tipo_sql, es_fk, ref_table, ref_col, default_val)
             ('pedidos', 'mesa_id', 'INTEGER', True, 'mesas', 'id', 1),
@@ -77,7 +78,8 @@ if __name__ == '__main__':
             ('productos', 'precio_bs', 'FLOAT', False, None, None, None),
             ('productos', 'precio_venta_cop', 'INTEGER', False, None, None, 0),
             ('productos', 'descuenta_inventario', 'BOOLEAN', False, None, None, False),
-            ('productos', 'insumo_id', 'INTEGER', False, None, None, None),
+            ('productos', 'insumo_id', 'INTEGER', True, 'insumos', 'id', None),
+            ('mesas', 'fecha_apertura', 'TIMESTAMP', False, None, None, None),
         ]
 
         for table, col_name, col_type, es_fk, ref_table, ref_col, default_val in column_fixes:
@@ -85,22 +87,25 @@ if __name__ == '__main__':
                 existing = {c['name'] for c in insp.get_columns(table)}
                 if col_name not in existing:
                     if engine_name == 'postgresql' and es_fk:
-                        # FK columns: add as NULL first, fill default, then NOT NULL + FK
+                        # FK columns: add as NULL first, optionally fill default, optionally NOT NULL, then FK
                         print(f'  → Agregando {table}.{col_name} como NULLABLE (FK pendiente)...')
                         db.session.execute(text(
                             f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type} NULL'
                         ))
                         db.session.commit()
-                        print(f'    → Asignando valor por defecto ({default_val}) a filas existentes...')
-                        db.session.execute(text(
-                            f'UPDATE {table} SET {col_name} = {default_val} WHERE {col_name} IS NULL'
-                        ))
-                        db.session.commit()
-                        print(f'    → Estableciendo NOT NULL...')
-                        db.session.execute(text(
-                            f'ALTER TABLE {table} ALTER COLUMN {col_name} SET NOT NULL'
-                        ))
-                        db.session.commit()
+                        if default_val is not None:
+                            print(f'    → Asignando valor por defecto ({default_val}) a filas existentes...')
+                            db.session.execute(text(
+                                f'UPDATE {table} SET {col_name} = {default_val} WHERE {col_name} IS NULL'
+                            ))
+                            db.session.commit()
+                            print(f'    → Estableciendo NOT NULL...')
+                            db.session.execute(text(
+                                f'ALTER TABLE {table} ALTER COLUMN {col_name} SET NOT NULL'
+                            ))
+                            db.session.commit()
+                        else:
+                            print(f'    → Columna nullable (sin valor por defecto) — se omite NOT NULL.')
                         # Verificar que la tabla referenciada tenga datos
                         ref_count = db.session.execute(text(
                             f'SELECT COUNT(*) FROM {ref_table}'
