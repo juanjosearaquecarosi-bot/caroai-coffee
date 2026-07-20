@@ -70,15 +70,10 @@
             </a>
         </div>
 
-        {% set bebidas = productos|selectattr('tipo', 'equalto', 'bebida')|list %}
-        {% set comidas = productos|selectattr('tipo', 'equalto', 'comida')|list %}
-        {% set granos = productos|selectattr('tipo', 'equalto', 'grano')|list %}
-        {% set cervezas = productos|selectattr('tipo', 'equalto', 'cerveza')|list %}
-
-        {% if bebidas %}
+        {% if catalogo.bebida %}
         <div class="pos-cat-title" data-cat="bebida">☕ Bebidas · Café</div>
         <div class="pos-prod-grid" data-cat="bebida">
-            {% for p in bebidas %}
+            {% for p in catalogo.bebida %}
             <button class="pos-prod-btn" data-prod="{{ p.id }}" data-search="{{ p.nombre|lower }}" onclick="addProd({{ p.id }})">
                 <span class="prod-icon">☕</span>
                 <span class="prod-name">{{ p.nombre }}</span>
@@ -89,10 +84,10 @@
         </div>
         {% endif %}
 
-        {% if comidas %}
+        {% if catalogo.comida %}
         <div class="pos-cat-title" data-cat="comida">🍰 Comidas</div>
         <div class="pos-prod-grid" data-cat="comida">
-            {% for p in comidas %}
+            {% for p in catalogo.comida %}
             <button class="pos-prod-btn" data-prod="{{ p.id }}" data-search="{{ p.nombre|lower }}" onclick="addProd({{ p.id }})">
                 <span class="prod-icon">🍰</span>
                 <span class="prod-name">{{ p.nombre }}</span>
@@ -102,10 +97,10 @@
         </div>
         {% endif %}
 
-        {% if granos %}
+        {% if catalogo.grano %}
         <div class="pos-cat-title" data-cat="grano">🫘 Café en grano</div>
         <div class="pos-prod-grid" data-cat="grano">
-            {% for p in granos %}
+            {% for p in catalogo.grano %}
             <button class="pos-prod-btn" data-prod="{{ p.id }}" data-search="{{ p.nombre|lower }}" onclick="addProd({{ p.id }})">
                 <span class="prod-icon">🫘</span>
                 <span class="prod-name">{{ p.nombre }}</span>
@@ -116,10 +111,10 @@
         </div>
         {% endif %}
 
-        {% if cervezas %}
+        {% if catalogo.cerveza %}
         <div class="pos-cat-title" data-cat="cerveza">🍺 Cervezas</div>
         <div class="pos-prod-grid" data-cat="cerveza">
-            {% for p in cervezas %}
+            {% for p in catalogo.cerveza %}
             <button class="pos-prod-btn" data-prod="{{ p.id }}" data-search="{{ p.nombre|lower }}" onclick="addProd({{ p.id }})">
                 <span class="prod-icon">🍺</span>
                 <span class="prod-name">{{ p.nombre }}</span>

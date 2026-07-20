@@ -110,6 +110,12 @@ def mesa(mesa_id):
     # Buscar pedido abierto o mostrar estado libre
     pedido = Pedido.query.filter_by(mesa_id=mesa.id, estado='abierto').first()
     productos = Producto.query.order_by(Producto.tipo, Producto.nombre).all()
+    catalogo = {
+        "bebida": [p for p in productos if (p.tipo or "").strip().lower() == "bebida"],
+        "comida": [p for p in productos if (p.tipo or "").strip().lower() == "comida"],
+        "grano": [p for p in productos if (p.tipo or "").strip().lower() == "grano"],
+        "cerveza": [p for p in productos if (p.tipo or "").strip().lower() == "cerveza"],
+    }
 
     total_cop = 0
     if pedido:
@@ -119,7 +125,7 @@ def mesa(mesa_id):
 
     return render_template('pos/mesa.html',
                            mesa=mesa, pedido=pedido,
-                           productos=productos, total_cop=total_cop,
+                           catalogo=catalogo, total_cop=total_cop,
                            tasa_usd=tasa_usd, tasa_bs=tasa_bs)
 
 
