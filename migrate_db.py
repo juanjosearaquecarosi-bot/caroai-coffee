@@ -76,6 +76,8 @@ if __name__ == '__main__':
             ('pedido_items', 'motivo_anulacion', 'VARCHAR(200)', False, None, None, None),
             ('productos', 'precio_usd', 'FLOAT', False, None, None, None),
             ('productos', 'precio_bs', 'FLOAT', False, None, None, None),
+            ('productos', 'precio_cop', 'INTEGER', False, None, None, 0),
+            ('productos', 'tipo', 'VARCHAR(20)', False, None, None, 'bebida'),
             ('productos', 'precio_venta_cop', 'INTEGER', False, None, None, 0),
             ('productos', 'descuenta_inventario', 'BOOLEAN', False, None, None, False),
             ('productos', 'insumo_id', 'INTEGER', True, 'insumos', 'id', None),
@@ -133,22 +135,22 @@ if __name__ == '__main__':
                             db.session.rollback()
                             print(f'  ⚠️ FK {fk_name}: {e} (la columna ya existe sin constraint, puede agregarse manualmente después)')
                     elif engine_name == 'postgresql':
-                        # Columnas regulares: nullable logic
-                        nullable = 'NULL'
-                        default = ''
+                        # Columnas regulares: nullable y default genérico
                         if default_val is not None:
-                            # Has default value
-                            if col_name == 'descuenta_inventario':
-                                default = ' DEFAULT FALSE'
-                                nullable = 'NOT NULL'
-                            elif col_name == 'precio_venta_cop':
-                                default = ' DEFAULT 0'
-                                nullable = 'NOT NULL'
+                            # Generar DEFAULT clause según el tipo de Python
+                            if isinstance(default_val, bool):
+                                default_sql = f" DEFAULT {'TRUE' if default_val else 'FALSE'}"
+                            elif isinstance(default_val, str):
+                                default_sql = f" DEFAULT '{default_val}'"
+                            elif isinstance(default_val, (int, float)):
+                                default_sql = f" DEFAULT {default_val}"
                             else:
-                                nullable = 'NULL'
+                                default_sql = ''
+                            nullable = 'NOT NULL'
                         else:
+                            default_sql = ''
                             nullable = 'NULL'
-                        sql = f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type} {nullable}{default}'
+                        sql = f'ALTER TABLE {table} ADD COLUMN {col_name} {col_type} {nullable}{default_sql}'
                         try:
                             db.session.execute(text(sql))
                             db.session.commit()
