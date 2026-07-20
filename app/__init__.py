@@ -1,5 +1,6 @@
 import os
 import logging
+import click
 from flask import Flask, redirect, url_for, flash
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -111,5 +112,33 @@ def create_app():
         db.session.add(user)
         db.session.commit()
         print("Usuario admin creado.")
+
+    # CLI command to change password
+    @app.cli.command("set-password")
+    @click.argument('email', default=None, required=False)
+    def set_password(email):
+        """Change password for an existing user.
+
+        Usage:  flask set-password admin@caroai.com
+                flask set-password  (prompts for email)
+        """
+        from .models import Usuario, db
+        if not email:
+            email = click.prompt("Email del usuario")
+        u = Usuario.query.filter_by(email=email).first()
+        if not u:
+            click.echo(f"❌ No existe usuario con email: {email}")
+            return
+        password = click.prompt("Nueva contraseña", hide_input=True)
+        confirm = click.prompt("Confirmar contraseña", hide_input=True)
+        if not password:
+            click.echo("❌ La contraseña no puede estar vacía.")
+            return
+        if password != confirm:
+            click.echo("❌ Las contraseñas no coinciden.")
+            return
+        u.set_password(password)
+        db.session.commit()
+        click.echo(f"✅ Contraseña cambiada para {u.email} ({u.nombre})")
 
     return app
