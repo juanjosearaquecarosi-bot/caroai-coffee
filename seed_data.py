@@ -22,8 +22,9 @@ def _minimal_app():
     return app
 
 
-def seed():
-    app = _minimal_app()
+def seed(app=None):
+    if app is None:
+        app = _minimal_app()
 
     with app.app_context():
         db.drop_all()

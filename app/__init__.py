@@ -1,4 +1,5 @@
 import os
+import logging
 from flask import Flask, redirect, url_for, flash
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -13,6 +14,14 @@ csrf = CSRFProtect()
 
 def create_app():
     app = Flask(__name__)
+
+    # ── Logging en producción ──
+    gunicorn_logger = logging.getLogger('gunicorn.error')
+    if gunicorn_logger.handlers:
+        app.logger.handlers = gunicorn_logger.handlers
+        app.logger.setLevel(gunicorn_logger.level)
+    else:
+        app.logger.setLevel(logging.INFO)
 
     # ProxyFix para que Flask genere URLs HTTPS correctas
     # en entornos con proxy inverso (Render, Railway, etc.)
@@ -37,8 +46,15 @@ def create_app():
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
+        app.logger.warning(f'CSRF error: {e}')
         flash('La sesión expiró o el token de seguridad no es válido. Por favor, intenta de nuevo.', 'warning')
         return redirect(url_for('pos.index'))
+
+    # ── Error handler 500 con logging ──
+    @app.errorhandler(500)
+    def handle_500(error):
+        app.logger.error(f'Error 500: {error}', exc_info=True)
+        return '<h1>Error interno del servidor</h1><p>Revisa los logs de Render para más detalles.</p>', 500
 
     # User loader callback
     from .models import Usuario  # Import here to avoid circular import
@@ -69,6 +85,16 @@ def create_app():
     @app.route('/')
     def index():
         return redirect(url_for('pos.index'))
+
+    # CLI command to seed the database
+    @app.cli.command("seed-db")
+    def seed_db():
+        """Seed the database with initial data (mesas, usuarios, insumos, productos, tasas, gastos)."""
+        from .seed_data import seed
+        from flask import current_app
+        seed(app=current_app._get_current_object())
+        print("Base de datos inicializada con datos de prueba.")
+
     # CLI command to create admin user
     @app.cli.command("create-admin")
     def create_admin():
