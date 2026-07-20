@@ -101,14 +101,32 @@ if __name__ == '__main__':
                             f'ALTER TABLE {table} ALTER COLUMN {col_name} SET NOT NULL'
                         ))
                         db.session.commit()
+                        # Verificar que la tabla referenciada tenga datos
+                        ref_count = db.session.execute(text(
+                            f'SELECT COUNT(*) FROM {ref_table}'
+                        )).scalar()
+                        if ref_count == 0:
+                            print(f'    ⚠️  Tabla {ref_table} vacía — insertando datos por defecto...')
+                            if ref_table == 'mesas':
+                                nombres = ['Mesa 1','Mesa 2','Mesa 3','Mesa 4','Mesa 5','Mesa 6','Barra']
+                                for i, n in enumerate(nombres):
+                                    db.session.execute(text(
+                                        f"INSERT INTO {ref_table} (id, nombre, estado) VALUES ({i+1}, '{n}', 'libre')"
+                                    ))
+                                db.session.commit()
+                                print(f'    ✅ 7 mesas creadas (Mesa 1-6 + Barra).')
                         print(f'    → Agregando FK {table}.{col_name} → {ref_table}.{ref_col}...')
                         fk_name = f'fk_{table}_{col_name}'
-                        db.session.execute(text(
-                            f'ALTER TABLE {table} ADD CONSTRAINT {fk_name} '
-                            f'FOREIGN KEY ({col_name}) REFERENCES {ref_table}({ref_col})'
-                        ))
-                        db.session.commit()
-                        print(f'  ✅ {table}.{col_name} agregada con FK a {ref_table}.{ref_col}.')
+                        try:
+                            db.session.execute(text(
+                                f'ALTER TABLE {table} ADD CONSTRAINT {fk_name} '
+                                f'FOREIGN KEY ({col_name}) REFERENCES {ref_table}({ref_col})'
+                            ))
+                            db.session.commit()
+                            print(f'  ✅ {table}.{col_name} agregada con FK a {ref_table}.{ref_col}.')
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f'  ⚠️ FK {fk_name}: {e} (la columna ya existe sin constraint, puede agregarse manualmente después)')
                     elif engine_name == 'postgresql':
                         # Columnas regulares: nullable logic
                         nullable = 'NULL'
@@ -149,7 +167,36 @@ if __name__ == '__main__':
                 print(f'  ℹ️  Tabla {table} no existe (se creará con create_all).')
 
         # ──────────────────────────────────────────────
-        #  3. Crear tablas completamente nuevas
+        #  3. Sembrar mesas por defecto si la tabla está vacía
+        #     (independientemente de si mesa_id ya existe o no)
+        # ──────────────────────────────────────────────
+        print()
+        print('🏗️  Verificando datos iniciales...')
+        if 'mesas' in tables:
+            count = db.session.execute(text('SELECT COUNT(*) FROM mesas')).scalar()
+            if count == 0:
+                print('  → Sembrando 7 mesas por defecto (Mesa 1-6 + Barra)...')
+                nombres = ['Mesa 1','Mesa 2','Mesa 3','Mesa 4','Mesa 5','Mesa 6','Barra']
+                for i, n in enumerate(nombres):
+                    db.session.execute(text(
+                        f"INSERT INTO mesas (id, nombre, estado) VALUES ({i+1}, '{n}', 'libre')"
+                    ))
+                db.session.commit()
+                print('  ✅ 7 mesas creadas.')
+            else:
+                print(f'  ✅ {count} mesas ya existen — omitido.')
+        else:
+            print('  ℹ️  Tabla mesas no existe (se creará con create_all).')
+
+        if 'usuarios' in tables:
+            count = db.session.execute(text('SELECT COUNT(*) FROM usuarios')).scalar()
+            if count == 0:
+                print('  → No hay usuarios registrados. Crea uno con: flask create-admin')
+            else:
+                print(f'  ✅ {count} usuarios ya existen.')
+
+        # ──────────────────────────────────────────────
+        #  4. Crear tablas completamente nuevas
         # ──────────────────────────────────────────────
         print()
         print('🏗️  Ejecutando db.create_all() para tablas nuevas...')
@@ -157,7 +204,7 @@ if __name__ == '__main__':
         print('  ✅ create_all() completado.')
 
         # ──────────────────────────────────────────────
-        #  4. Verificación final
+        #  5. Verificación final
         # ──────────────────────────────────────────────
         print()
         tables_post = insp.get_table_names()
