@@ -115,45 +115,46 @@ def seed(app=None):
                 print(f"✔  {ins} productos insertados desde Excel, {act} actualizados.")
             except Exception as e:
                 print(f"   ℹ️  Importación desde Excel: {e}")
+                db.session.rollback()
                 print("   → Usando productos de ejemplo como fallback.")
                 # Si no hay Excel, crear productos del Excel como fallback
                 productos = [
                     # BEBIDAS (24)
-                    Producto(nombre='Agua mineral 620 ml', tipo='bebida', precio_cop=3000, precio_venta_cop=3000, precio_usd=0.83, precio_bs=666.67),
-                    Producto(nombre='Batidos (Fresa/Mora)', tipo='bebida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
-                    Producto(nombre='Café Americano', tipo='bebida', precio_cop=4500, precio_venta_cop=4500, precio_usd=1.25, precio_bs=1000.0),
-                    Producto(nombre='Cappuccino / Latte', tipo='bebida', precio_cop=6500, precio_venta_cop=6500, precio_usd=1.81, precio_bs=1444.44),
-                    Producto(nombre='Cappuccino Peq', tipo='bebida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
-                    Producto(nombre='Cappuccino doble', tipo='bebida', precio_cop=8000, precio_venta_cop=8000, precio_usd=2.22, precio_bs=1777.78),
-                    Producto(nombre='Caroai Bombon', tipo='bebida', precio_cop=5500, precio_venta_cop=5500, precio_usd=1.53, precio_bs=1222.22),
-                    Producto(nombre='Caroai frappe', tipo='bebida', precio_cop=12000, precio_venta_cop=12000, precio_usd=3.33, precio_bs=2666.67),
-                    Producto(nombre='Chocolate caliente', tipo='bebida', precio_cop=6500, precio_venta_cop=6500, precio_usd=1.81, precio_bs=1444.44),
-                    Producto(nombre='Doppio', tipo='bebida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
-                    Producto(nombre='Espresso', tipo='bebida', precio_cop=4000, precio_venta_cop=4000, precio_usd=1.11, precio_bs=888.89),
-                    Producto(nombre='Espresso americano', tipo='bebida', precio_cop=4500, precio_venta_cop=4500, precio_usd=1.25, precio_bs=1000.0),
-                    Producto(nombre='Frappe de café y limón', tipo='bebida', precio_cop=6500, precio_venta_cop=6500, precio_usd=1.81, precio_bs=1444.44),
-                    Producto(nombre='Frappe de limón/Masato', tipo='bebida', precio_cop=3000, precio_venta_cop=3000, precio_usd=0.83, precio_bs=666.67),
-                    Producto(nombre='Infusiones', tipo='bebida', precio_cop=3600, precio_venta_cop=3600, precio_usd=1.0, precio_bs=800.0),
-                    Producto(nombre='Latte canela', tipo='bebida', precio_cop=7500, precio_venta_cop=7500, precio_usd=2.08, precio_bs=1666.67),
-                    Producto(nombre='Latte vainilla', tipo='bebida', precio_cop=7500, precio_venta_cop=7500, precio_usd=2.08, precio_bs=1666.67),
-                    Producto(nombre='Machiatto', tipo='bebida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
-                    Producto(nombre='Merengadas (Fresa/Mora)', tipo='bebida', precio_cop=6000, precio_venta_cop=6000, precio_usd=1.67, precio_bs=1333.33),
-                    Producto(nombre='Miel de abejas', tipo='bebida', precio_cop=10000, precio_venta_cop=10000, precio_usd=2.78, precio_bs=2222.22),
-                    Producto(nombre='Mochaccino', tipo='bebida', precio_cop=7500, precio_venta_cop=7500, precio_usd=2.08, precio_bs=1666.67),
-                    Producto(nombre='Refrescos', tipo='bebida', precio_cop=2500, precio_venta_cop=2500, precio_usd=0.69, precio_bs=555.56),
-                    Producto(nombre='Taza o vaso de leche', tipo='bebida', precio_cop=3600, precio_venta_cop=3600, precio_usd=1.0, precio_bs=800.0),
-                    Producto(nombre='Toddy caliente y frio', tipo='bebida', precio_cop=6500, precio_venta_cop=6500, precio_usd=1.81, precio_bs=1444.44),
+                    Producto(nombre='Agua mineral 620 ml', tipo='bebida', categoria='bebida', precio_cop=3000, precio_venta_cop=3000, precio_usd=0.83, precio_bs=666.67),
+                    Producto(nombre='Batidos (Fresa/Mora)', tipo='bebida', categoria='bebida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
+                    Producto(nombre='Café Americano', tipo='bebida', categoria='bebida', precio_cop=4500, precio_venta_cop=4500, precio_usd=1.25, precio_bs=1000.0),
+                    Producto(nombre='Cappuccino / Latte', tipo='bebida', categoria='bebida', precio_cop=6500, precio_venta_cop=6500, precio_usd=1.81, precio_bs=1444.44),
+                    Producto(nombre='Cappuccino Peq', tipo='bebida', categoria='bebida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
+                    Producto(nombre='Cappuccino doble', tipo='bebida', categoria='bebida', precio_cop=8000, precio_venta_cop=8000, precio_usd=2.22, precio_bs=1777.78),
+                    Producto(nombre='Caroai Bombon', tipo='bebida', categoria='bebida', precio_cop=5500, precio_venta_cop=5500, precio_usd=1.53, precio_bs=1222.22),
+                    Producto(nombre='Caroai frappe', tipo='bebida', categoria='bebida', precio_cop=12000, precio_venta_cop=12000, precio_usd=3.33, precio_bs=2666.67),
+                    Producto(nombre='Chocolate caliente', tipo='bebida', categoria='bebida', precio_cop=6500, precio_venta_cop=6500, precio_usd=1.81, precio_bs=1444.44),
+                    Producto(nombre='Doppio', tipo='bebida', categoria='bebida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
+                    Producto(nombre='Espresso', tipo='bebida', categoria='bebida', precio_cop=4000, precio_venta_cop=4000, precio_usd=1.11, precio_bs=888.89),
+                    Producto(nombre='Espresso americano', tipo='bebida', categoria='bebida', precio_cop=4500, precio_venta_cop=4500, precio_usd=1.25, precio_bs=1000.0),
+                    Producto(nombre='Frappe de café y limón', tipo='bebida', categoria='bebida', precio_cop=6500, precio_venta_cop=6500, precio_usd=1.81, precio_bs=1444.44),
+                    Producto(nombre='Frappe de limón/Masato', tipo='bebida', categoria='bebida', precio_cop=3000, precio_venta_cop=3000, precio_usd=0.83, precio_bs=666.67),
+                    Producto(nombre='Infusiones', tipo='bebida', categoria='bebida', precio_cop=3600, precio_venta_cop=3600, precio_usd=1.0, precio_bs=800.0),
+                    Producto(nombre='Latte canela', tipo='bebida', categoria='bebida', precio_cop=7500, precio_venta_cop=7500, precio_usd=2.08, precio_bs=1666.67),
+                    Producto(nombre='Latte vainilla', tipo='bebida', categoria='bebida', precio_cop=7500, precio_venta_cop=7500, precio_usd=2.08, precio_bs=1666.67),
+                    Producto(nombre='Machiatto', tipo='bebida', categoria='bebida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
+                    Producto(nombre='Merengadas (Fresa/Mora)', tipo='bebida', categoria='bebida', precio_cop=6000, precio_venta_cop=6000, precio_usd=1.67, precio_bs=1333.33),
+                    Producto(nombre='Miel de abejas', tipo='bebida', categoria='bebida', precio_cop=10000, precio_venta_cop=10000, precio_usd=2.78, precio_bs=2222.22),
+                    Producto(nombre='Mochaccino', tipo='bebida', categoria='bebida', precio_cop=7500, precio_venta_cop=7500, precio_usd=2.08, precio_bs=1666.67),
+                    Producto(nombre='Refrescos', tipo='bebida', categoria='bebida', precio_cop=2500, precio_venta_cop=2500, precio_usd=0.69, precio_bs=555.56),
+                    Producto(nombre='Taza o vaso de leche', tipo='bebida', categoria='bebida', precio_cop=3600, precio_venta_cop=3600, precio_usd=1.0, precio_bs=800.0),
+                    Producto(nombre='Toddy caliente y frio', tipo='bebida', categoria='bebida', precio_cop=6500, precio_venta_cop=6500, precio_usd=1.81, precio_bs=1444.44),
                     # CERVEZAS (2)
-                    Producto(nombre='Cerveza Polar', tipo='cerveza', precio_cop=3600, precio_venta_cop=3600, precio_usd=1.0, precio_bs=800.0),
-                    Producto(nombre='Malta Ret', tipo='cerveza', precio_cop=2500, precio_venta_cop=2500, precio_usd=0.69, precio_bs=555.56),
+                    Producto(nombre='Cerveza Polar', tipo='cerveza', categoria='cerveza', precio_cop=3600, precio_venta_cop=3600, precio_usd=1.0, precio_bs=800.0),
+                    Producto(nombre='Malta Ret', tipo='cerveza', categoria='cerveza', precio_cop=2500, precio_venta_cop=2500, precio_usd=0.69, precio_bs=555.56),
                     # COMIDAS (3)
-                    Producto(nombre='Ponquecito', tipo='comida', precio_cop=2000, precio_venta_cop=2000, precio_usd=0.56, precio_bs=444.44),
-                    Producto(nombre='Torta de chocolate', tipo='comida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
-                    Producto(nombre='Torta de vainilla', tipo='comida', precio_cop=4000, precio_venta_cop=4000, precio_usd=1.11, precio_bs=888.89),
+                    Producto(nombre='Ponquecito', tipo='comida', categoria='comida', precio_cop=2000, precio_venta_cop=2000, precio_usd=0.56, precio_bs=444.44),
+                    Producto(nombre='Torta de chocolate', tipo='comida', categoria='comida', precio_cop=5000, precio_venta_cop=5000, precio_usd=1.39, precio_bs=1111.11),
+                    Producto(nombre='Torta de vainilla', tipo='comida', categoria='comida', precio_cop=4000, precio_venta_cop=4000, precio_usd=1.11, precio_bs=888.89),
                     # GRANOS (3)
-                    Producto(nombre='Kilo origen', tipo='grano', precio_cop=72000, precio_venta_cop=72000, precio_usd=20.0, precio_bs=16000.0),
-                    Producto(nombre='¼ Kilo origen', tipo='grano', precio_cop=18000, precio_venta_cop=18000, precio_usd=5.0, precio_bs=4000.0),
-                    Producto(nombre='½ Kilo origen', tipo='grano', precio_cop=36000, precio_venta_cop=36000, precio_usd=10.0, precio_bs=8000.0),
+                    Producto(nombre='Kilo origen', tipo='grano', categoria='grano', precio_cop=72000, precio_venta_cop=72000, precio_usd=20.0, precio_bs=16000.0),
+                    Producto(nombre='¼ Kilo origen', tipo='grano', categoria='grano', precio_cop=18000, precio_venta_cop=18000, precio_usd=5.0, precio_bs=4000.0),
+                    Producto(nombre='½ Kilo origen', tipo='grano', categoria='grano', precio_cop=36000, precio_venta_cop=36000, precio_usd=10.0, precio_bs=8000.0),
                 ]
                 db.session.add_all(productos)
                 db.session.commit()

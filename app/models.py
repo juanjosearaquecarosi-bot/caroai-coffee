@@ -59,6 +59,7 @@ class Producto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     tipo = db.Column(db.String(20), nullable=False, default='bebida')  # bebida / comida / grano / cerveza
+    categoria = db.Column(db.String(20), nullable=False, default='bebida')  # same as tipo (legacy compat)
     precio_cop = db.Column(db.Integer, nullable=False, default=0)
     precio_usd = db.Column(db.Float, nullable=True)
     precio_bs = db.Column(db.Float, nullable=True)

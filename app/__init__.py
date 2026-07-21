@@ -91,7 +91,7 @@ def create_app():
     @app.cli.command("seed-db")
     def seed_db():
         """Seed the database with initial data (mesas, usuarios, insumos, productos, tasas, gastos)."""
-        from .seed_data import seed
+        from seed_data import seed
         from flask import current_app
         seed(app=current_app._get_current_object())
         print("Base de datos inicializada con datos de prueba.")

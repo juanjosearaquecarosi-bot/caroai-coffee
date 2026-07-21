@@ -149,6 +149,7 @@ def import_productos(excel_path=None):
 
     for data in productos_data:
         nombre = data['nombre']
+        categoria_val = data['tipo']
         existente = Producto.query.filter_by(nombre=nombre).first()
         if existente:
             changed = False
@@ -162,12 +163,17 @@ def import_productos(excel_path=None):
             if data.get('precio_bs') is not None and existente.precio_bs != data['precio_bs']:
                 existente.precio_bs = data['precio_bs']
                 changed = True
+            # Ensure categoria matches tipo (legacy compat with PostgreSQL NOT NULL)
+            if existente.categoria != categoria_val:
+                existente.categoria = categoria_val
+                changed = True
             if changed:
                 actualizados += 1
         else:
             prod = Producto(
                 nombre=nombre,
                 tipo=data['tipo'],
+                categoria=categoria_val,
                 precio_cop=data['precio_cop'],
                 precio_venta_cop=data['precio_cop'],
                 precio_usd=data.get('precio_usd'),
