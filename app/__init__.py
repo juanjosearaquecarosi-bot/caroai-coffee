@@ -1,5 +1,6 @@
 import os
 import logging
+from datetime import timedelta
 import click
 from flask import Flask, redirect, url_for, flash
 from flask_login import LoginManager
@@ -37,6 +38,17 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///caroai.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hora
+
+    # ── Cookie segura para sesión (solo en producción HTTPS) ──
+    if not app.debug:
+        app.config['SESSION_COOKIE_SECURE'] = True
+        app.config['SESSION_COOKIE_HTTPONLY'] = True
+        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+        app.config['REMEMBER_COOKIE_SECURE'] = True
+        app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+        app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+        app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
+        app.logger.info("🔒 Cookies seguras habilitadas para HTTPS")
 
     init_app(app)
     login_manager.init_app(app)
@@ -113,15 +125,8 @@ def create_app():
         db.session.commit()
         print("Usuario admin creado.")
 
-    # CLI command to change password
-    @app.cli.command("set-password")
-    @click.argument('email', default=None, required=False)
-    def set_password(email):
-        """Change password for an existing user.
-
-        Usage:  flask set-password admin@caroai.com
-                flask set-password  (prompts for email)
-        """
+    # Helper compartida para cambiar contraseña
+    def _change_password(email):
         from .models import Usuario, db
         if not email:
             email = click.prompt("Email del usuario")
@@ -140,5 +145,25 @@ def create_app():
         u.set_password(password)
         db.session.commit()
         click.echo(f"✅ Contraseña cambiada para {u.email} ({u.nombre})")
+
+    # CLI command to change password
+    @app.cli.command("set-password")
+    @click.argument('email', default=None, required=False)
+    def set_password(email):
+        """Change password for an existing user.
+
+        Usage:  flask set-password admin@caroai.com
+        """
+        _change_password(email)
+
+    # CLI command to reset password (alias)
+    @app.cli.command("reset-password")
+    @click.argument('email', default=None, required=False)
+    def reset_password(email):
+        """Reset password for an existing user.
+
+        Usage:  flask reset-password admin@caroai.com
+        """
+        _change_password(email)
 
     return app
