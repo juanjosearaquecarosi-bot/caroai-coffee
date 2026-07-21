@@ -560,6 +560,15 @@
     color: var(--color-success-text);
 }
 
+/* Rate row (for non-COP currencies) */
+.rate-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; padding: 0.75rem 1rem; background: var(--color-info-bg); border-radius: var(--radius-sm); }
+.rate-row .form-label { margin: 0; flex: 1; }
+.rate-input { width: 100px; padding: 0.375rem 0.5rem; border: 1px solid var(--color-border); border-radius: 6px; font-family: var(--font-body); font-size: 0.875rem; font-weight: 600; text-align: center; background: var(--color-surface); color: var(--color-text-primary); outline: none; }
+.rate-input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(184,145,110,0.15); }
+.converted-box { text-align: center; padding: 1rem; background: var(--color-success-bg); border-radius: var(--radius-md); border: 1px solid rgba(123,168,141,0.3); }
+.converted-label { font-size: 0.8125rem; font-weight: 600; color: var(--color-success-text); display: block; margin-bottom: 0.25rem; }
+.converted-amount { font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; color: var(--color-success-text); }
+
 /* History button */
 .history-link {
     display: inline-flex;
@@ -675,14 +684,11 @@
             </a>
         </div>
 
-        {% set bebidas = productos|selectattr('categoria', 'equalto', 'bebida')|list %}
-        {% set comidas = productos|selectattr('categoria', 'equalto', 'comida')|list %}
-
-        {% if bebidas %}
+        {% if catalogo['bebida'] %}
         <div class="pos-category-section" data-cat="bebida">
             <div class="pos-category-title">☕ Bebidas</div>
             <div class="pos-product-grid">
-                {% for p in bebidas %}
+                {% for p in catalogo['bebida'] %}
                 <button type="button" class="pos-product-btn" data-product-id="{{ p.id }}" data-search="{{ p.nombre|lower }}"
                         onclick="addProduct({{ p.id }}, '{{ p.nombre|e }}', {{ p.precio_venta_cop }})">
                     <span class="product-icon">☕</span>
@@ -694,14 +700,46 @@
         </div>
         {% endif %}
 
-        {% if comidas %}
+        {% if catalogo['comida'] %}
         <div class="pos-category-section" data-cat="comida">
             <div class="pos-category-title">🍰 Comidas</div>
             <div class="pos-product-grid">
-                {% for p in comidas %}
+                {% for p in catalogo['comida'] %}
                 <button type="button" class="pos-product-btn" data-product-id="{{ p.id }}" data-search="{{ p.nombre|lower }}"
                         onclick="addProduct({{ p.id }}, '{{ p.nombre|e }}', {{ p.precio_venta_cop }})">
                     <span class="product-icon">🍰</span>
+                    <span class="product-name">{{ p.nombre }}</span>
+                    <span class="product-price">${{ "{:,}".format(p.precio_venta_cop) }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if catalogo['grano'] %}
+        <div class="pos-category-section" data-cat="grano">
+            <div class="pos-category-title">🫘 Café en grano</div>
+            <div class="pos-product-grid">
+                {% for p in catalogo['grano'] %}
+                <button type="button" class="pos-product-btn" data-product-id="{{ p.id }}" data-search="{{ p.nombre|lower }}"
+                        onclick="addProduct({{ p.id }}, '{{ p.nombre|e }}', {{ p.precio_venta_cop }})">
+                    <span class="product-icon">🫘</span>
+                    <span class="product-name">{{ p.nombre }}</span>
+                    <span class="product-price">${{ "{:,}".format(p.precio_venta_cop) }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if catalogo['cerveza'] %}
+        <div class="pos-category-section" data-cat="cerveza">
+            <div class="pos-category-title">🍺 Cervezas</div>
+            <div class="pos-product-grid">
+                {% for p in catalogo['cerveza'] %}
+                <button type="button" class="pos-product-btn" data-product-id="{{ p.id }}" data-search="{{ p.nombre|lower }}"
+                        onclick="addProduct({{ p.id }}, '{{ p.nombre|e }}', {{ p.precio_venta_cop }})">
+                    <span class="product-icon">🍺</span>
                     <span class="product-name">{{ p.nombre }}</span>
                     <span class="product-price">${{ "{:,}".format(p.precio_venta_cop) }}</span>
                 </button>
@@ -789,14 +827,35 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="form-group">
-                <label class="form-label">Método de pago</label>
+                <label class="form-label">Divisa de cobro</label>
                 <div class="payment-pills">
+                    <button type="button" class="payment-pill active" data-currency="COP" onclick="selectCurrency(this)">🇨🇴 COP</button>
+                    <button type="button" class="payment-pill" data-currency="USD" data-rate="{{ tasa_usd }}" onclick="selectCurrency(this)">🇺🇸 USD</button>
+                    <button type="button" class="payment-pill" data-currency="BS" data-rate="{{ tasa_bs }}" onclick="selectCurrency(this)">🇻🇪 Bs</button>
+                </div>
+                <input type="hidden" name="moneda_pago" id="monedaPago" value="COP">
+            </div>
+
+            <div class="rate-row" id="rateRow" style="display:none;">
+                <label class="form-label" id="rateLabel">Tasa: 1 USD = <input type="number" name="tasa_aplicada" id="tasaInput" value="{{ tasa_usd }}" step="0.01" min="0.01" class="rate-input"> COP</label>
+            </div>
+
+            <div class="form-group" id="convertedRow" style="display:none;">
+                <div class="converted-box">
+                    <span class="converted-label" id="convertedLabel">Total en USD</span>
+                    <span class="converted-amount" id="convertedAmount">$0.00</span>
+                    <input type="hidden" name="total_pagado_moneda" id="totalPagadoMoneda" value="">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Método de pago</label>
+                <div class="payment-pills" style="grid-template-columns:repeat(3,1fr);">
                     <button type="button" class="payment-pill active" data-value="efectivo" onclick="selectPayment(this)">💵 Efectivo</button>
                     <button type="button" class="payment-pill" data-value="binance" onclick="selectPayment(this)"> Binance</button>
                     <button type="button" class="payment-pill" data-value="bancolombia" onclick="selectPayment(this)">🏦 Bancolombia</button>
                 </div>
                 <input type="hidden" name="metodo_pago" id="metodoPago" value="efectivo">
-                <input type="hidden" name="moneda_pago" value="COP">
             </div>
 
             <div class="form-group">
@@ -953,6 +1012,60 @@ function escapeHtml(str) {
 
 function escapeJsStr(str) {
     return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+var TOTAL_COP = {{ total }};
+var TASA_USD = {{ tasa_usd }};
+var TASA_BS = {{ tasa_bs }};
+
+function selectCurrency(el) {
+    var currency = el.getAttribute('data-currency');
+    document.querySelectorAll('#chargeModal .payment-pills:first-child .payment-pill').forEach(function(p){p.classList.remove('active')});
+    el.classList.add('active');
+    document.getElementById('monedaPago').value = currency;
+
+    var rateRow = document.getElementById('rateRow');
+    var convertedRow = document.getElementById('convertedRow');
+    var rateInput = document.getElementById('tasaInput');
+    var rateLabel = document.getElementById('rateLabel');
+
+    if (currency === 'COP') {
+        rateRow.style.display = 'none';
+        convertedRow.style.display = 'none';
+        document.getElementById('totalPagadoMoneda').value = '';
+    } else {
+        var rate = parseFloat(el.getAttribute('data-rate')) || 1;
+        rateInput.value = rate.toFixed(2);
+        rateLabel.innerHTML = 'Tasa: 1 ' + currency + ' = <input type="number" name="tasa_aplicada" id="tasaInput" value="' + rate.toFixed(2) + '" step="0.01" min="0.01" class="rate-input" oninput="recalcTotal()"> COP';
+        rateRow.style.display = 'flex';
+        convertedRow.style.display = 'block';
+        updateConverted(currency, rate);
+    }
+}
+
+function recalcTotal() {
+    var currency = document.getElementById('monedaPago').value;
+    var rate = parseFloat(document.getElementById('tasaInput').value) || 0;
+    updateConverted(currency, rate);
+}
+
+function updateConverted(currency, rate) {
+    var label = document.getElementById('convertedLabel');
+    var amount = document.getElementById('convertedAmount');
+    var hidden = document.getElementById('totalPagadoMoneda');
+
+    if (rate <= 0) {
+        amount.textContent = '$0.00';
+        hidden.value = '';
+        return;
+    }
+
+    var converted = TOTAL_COP / rate;
+    var sym = currency === 'USD' ? '$' : (currency === 'BS' ? 'Bs ' : '$');
+    var formatted = converted < 1 ? converted.toFixed(4) : converted.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    label.textContent = 'Total en ' + currency;
+    amount.textContent = sym + formatted;
+    hidden.value = converted.toFixed(4);
 }
 
 // ─── Payment selection ───

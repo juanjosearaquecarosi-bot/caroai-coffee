@@ -149,9 +149,9 @@ def run_tests():
         db.session.add(ins)
         db.session.flush()
 
-        prod = Producto(nombre='Café Americano', categoria='bebida',
+        prod = Producto(nombre='Café Americano', tipo='bebida',
                          precio_venta_cop=4500, descuenta_inventario=True)
-        prod2 = Producto(nombre='Capuchino', categoria='bebida',
+        prod2 = Producto(nombre='Capuchino', tipo='bebida',
                           precio_venta_cop=6500, descuenta_inventario=True)
         db.session.add_all([prod, prod2])
         db.session.commit()

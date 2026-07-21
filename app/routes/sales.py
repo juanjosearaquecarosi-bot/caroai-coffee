@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required
 from ..models import db, Producto, Pedido, PedidoItem, Mesa
 from ..utils.decorators import role_required
+from ..utils.currency import obtener_tasas_cop, convertir_cop_a
 from datetime import datetime
 
 sales_bp = Blueprint('sales', __name__)
@@ -49,9 +50,20 @@ def _get_caja_id():
 def index():
     """POS cash-register main page."""
     productos = Producto.query.order_by(Producto.tipo, Producto.nombre).all()
+    catalogo = {
+        "bebida": [p for p in productos if (p.tipo or "").strip().lower() == "bebida"],
+        "comida": [p for p in productos if (p.tipo or "").strip().lower() == "comida"],
+        "grano": [p for p in productos if (p.tipo or "").strip().lower() == "grano"],
+        "cerveza": [p for p in productos if (p.tipo or "").strip().lower() == "cerveza"],
+    }
     cart = _cart()
     total = _cart_total(cart)
-    return render_template('sales/pos.html', productos=productos, cart=cart, total=total)
+    tasa_usd, tasa_bs = obtener_tasas_cop()
+    return render_template('sales/pos.html',
+                           productos=productos,
+                           catalogo=catalogo,
+                           cart=cart, total=total,
+                           tasa_usd=tasa_usd, tasa_bs=tasa_bs)
 
 
 # ──────────────────────────────────────────────
@@ -152,9 +164,24 @@ def charge():
 
     moneda_pago = request.form.get('moneda_pago', 'COP')
     metodo_pago = request.form.get('metodo_pago', 'efectivo')
+    tasa_str = request.form.get('tasa_aplicada', '').strip()
+    total_moneda_str = request.form.get('total_pagado_moneda', '').strip()
     observaciones = request.form.get('observaciones', '').strip() or None
 
     total = _cart_total(cart)
+
+    # ── Validar tasa activa si la moneda no es COP ──
+    if moneda_pago != 'COP':
+        monto_convertido, tasa_val, error_msg = convertir_cop_a(total, moneda_pago)
+        if error_msg:
+            flash(error_msg, 'warning')
+            return redirect(url_for('sales.index'))
+        tasa_final = float(tasa_str) if tasa_str else tasa_val
+        total_moneda_final = float(total_moneda_str) if total_moneda_str else monto_convertido
+    else:
+        tasa_final = 1.0
+        total_moneda_final = None
+
     caja_id = _get_caja_id()
     now = datetime.utcnow()
 
@@ -164,6 +191,8 @@ def charge():
         estado='pagado',
         moneda_pago=moneda_pago,
         metodo_pago=metodo_pago,
+        tasa_aplicada=tasa_final,
+        total_pagado_moneda=total_moneda_final,
         observaciones=observaciones,
         pagado_en=now,
         fecha_hora=now,
@@ -183,7 +212,10 @@ def charge():
     db.session.commit()
     _clear_cart()
 
-    flash(f'✅ Venta #{pedido.id} registrada · ${total:,} COP', 'success')
+    if total_moneda_final:
+        flash(f'✅ Venta #{pedido.id} · ${total:,} COP → {total_moneda_final} {moneda_pago}', 'success')
+    else:
+        flash(f'✅ Venta #{pedido.id} registrada · ${total:,} COP', 'success')
     return redirect(url_for('sales.index'))
 
 

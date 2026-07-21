@@ -1,40 +1,12 @@
+import logging
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, abort
 from flask_login import login_required
-from ..models import db, Mesa, Pedido, PedidoItem, Producto, TasaCambio
+from ..models import db, Mesa, Pedido, PedidoItem, Producto
 from ..utils.decorators import role_required
+from ..utils.currency import obtener_tasas_cop, convertir_cop_a
 from datetime import datetime, date
 
-
-def _get_tasas():
-    """Retorna (tasa_usd, tasa_bs): cuántos COP vale 1 USD y 1 BS."""
-    tasa_usd = 4200.0
-    tasa_bs = 6.0
-
-    t = TasaCambio.query.filter_by(
-        moneda_origen='USD', moneda_destino='COP'
-    ).order_by(TasaCambio.vigente_desde.desc()).first()
-    if t:
-        tasa_usd = t.tasa
-    else:
-        t = TasaCambio.query.filter_by(
-            moneda_origen='COP', moneda_destino='USD'
-        ).order_by(TasaCambio.vigente_desde.desc()).first()
-        if t and t.tasa > 0:
-            tasa_usd = round(1 / t.tasa, 2)
-
-    t = TasaCambio.query.filter_by(
-        moneda_origen='VES', moneda_destino='COP'
-    ).order_by(TasaCambio.vigente_desde.desc()).first()
-    if t:
-        tasa_bs = t.tasa
-    else:
-        t = TasaCambio.query.filter_by(
-            moneda_origen='COP', moneda_destino='VES'
-        ).order_by(TasaCambio.vigente_desde.desc()).first()
-        if t and t.tasa > 0:
-            tasa_bs = round(1 / t.tasa, 2)
-
-    return tasa_usd, tasa_bs
+logger = logging.getLogger(__name__)
 
 pos_bp = Blueprint('pos', __name__, url_prefix='/pos')
 
@@ -117,11 +89,19 @@ def mesa(mesa_id):
         "cerveza": [p for p in productos if (p.tipo or "").strip().lower() == "cerveza"],
     }
 
+    # ── DEBUG: log cantidades de productos ──
+    logger.info(
+        "📦 POS mesa=%s — total productos: %d  |  bebida=%d  comida=%d  grano=%d  cerveza=%d",
+        mesa.nombre, len(productos),
+        len(catalogo["bebida"]), len(catalogo["comida"]),
+        len(catalogo["grano"]), len(catalogo["cerveza"]),
+    )
+
     total_cop = 0
     if pedido:
         total_cop = sum(i.subtotal_cop for i in pedido.items)
 
-    tasa_usd, tasa_bs = _get_tasas()
+    tasa_usd, tasa_bs = obtener_tasas_cop()
 
     return render_template('pos/mesa.html',
                            mesa=mesa, pedido=pedido,
@@ -255,12 +235,27 @@ def charge(mesa_id):
 
     now = datetime.utcnow()
     total_cop = sum(i.subtotal_cop for i in pedido.items)
+
+    # ── Validar tasa activa si la moneda no es COP ──
+    if moneda_pago != 'COP':
+        monto_convertido, tasa_val, error_msg = convertir_cop_a(total_cop, moneda_pago)
+        if error_msg:
+            flash(error_msg, 'warning')
+            return redirect(url_for('pos.mesa', mesa_id=mesa_id))
+        # Usar la tasa del formulario (permite ajuste manual), pero validamos que exista
+        tasa_final = float(tasa_str) if tasa_str else tasa_val
+        total_moneda_final = float(total_moneda_str) if total_moneda_str else monto_convertido
+    else:
+        tasa_final = 1.0
+        total_moneda_final = None
+
+    # ── Pedido ──
     pedido.total = total_cop
     pedido.estado = 'pagado'
     pedido.moneda_pago = moneda_pago
     pedido.metodo_pago = metodo_pago
-    pedido.tasa_aplicada = float(tasa_str) if tasa_str else (1.0 if moneda_pago == 'COP' else None)
-    pedido.total_pagado_moneda = float(total_moneda_str) if total_moneda_str else None
+    pedido.tasa_aplicada = tasa_final
+    pedido.total_pagado_moneda = total_moneda_final
     pedido.observaciones = observaciones
     pedido.pagado_en = now
 
@@ -270,7 +265,7 @@ def charge(mesa_id):
 
     db.session.commit()
 
-    flash_moneda = f'{moneda_pago} {total_moneda_str}' if total_moneda_str else f'${total_cop:,} COP'
+    flash_moneda = f'{moneda_pago} {total_moneda_final}' if total_moneda_final else f'${total_cop:,} COP'
     flash(f'✅ {mesa.nombre} cobrada · {flash_moneda}', 'success')
     return redirect(url_for('pos.index'))
 

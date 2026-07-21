@@ -82,8 +82,8 @@ def seed(app=None):
         # 4. TASAS DE CAMBIO (solo si no existen)
         if TasaCambio.query.count() == 0:
             tasas = [
-                TasaCambio(moneda_origen='COP', moneda_destino='USD', tasa=4200.0, vigente_desde=datetime(2026, 7, 1, 0, 0, 0)),
-                TasaCambio(moneda_origen='COP', moneda_destino='VES', tasa=0.18, vigente_desde=datetime(2026, 7, 1, 0, 0, 0)),
+                TasaCambio(moneda_origen='USD', moneda_destino='COP', tasa=4200.0, vigente_desde=datetime(2026, 7, 1, 0, 0, 0)),
+                TasaCambio(moneda_origen='VES', moneda_destino='COP', tasa=6.0, vigente_desde=datetime(2026, 7, 1, 0, 0, 0)),
             ]
             db.session.add_all(tasas)
             db.session.commit()
