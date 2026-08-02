@@ -51,6 +51,22 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="tipo" class="form-label">Tipo de tasa <span class="text-muted" style="font-weight: 400;">(opcional)</span></label>
+                    <select class="form-select" id="tipo" name="tipo">
+                        <option value="">— Directa (original) —</option>
+                        {% for val, label in tipos_tasa.items() %}
+                        {% if val %}
+                        <option value="{{ val }}" {% if tasa and tasa.tipo == val %}selected{% endif %}>{{ label }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                    <span class="form-hint">
+                        <strong>VES Compra/Venta:</strong> se promedian automáticamente para convertir COP→VES.<br>
+                        <strong>Tasa Táchira:</strong> se usa para convertir COP→USD (prioridad sobre directa).
+                    </span>
+                </div>
+
+                <div class="form-group">
                     <label for="vigente_desde" class="form-label">Vigente desde</label>
                     <input type="datetime-local" class="form-input" id="vigente_desde" name="vigente_desde"
                            value="{{ now_str }}" style="max-width: 300px;">

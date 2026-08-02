@@ -58,7 +58,7 @@ def index():
     }
     cart = _cart()
     total = _cart_total(cart)
-    tasa_usd, tasa_bs = obtener_tasas_cop()
+    tasa_usd, tasa_bs, *_ = obtener_tasas_cop()
     return render_template('sales/pos.html',
                            productos=productos,
                            catalogo=catalogo,

@@ -21,6 +21,7 @@
         <table>
             <thead>
                 <tr>
+                    <th>Tipo</th>
                     <th>Origen</th>
                     <th>Destino</th>
                     <th>Tasa</th>
@@ -31,6 +32,7 @@
             <tbody>
                 {% for t in tasas %}
                 <tr>
+                    <td><span class="badge {% if t.tipo == 'ves_compra' %}badge-stock-bajo{% elif t.tipo == 'ves_venta' %}badge-pagado{% elif t.tipo == 'tachira_usd' %}badge-info{% else %}badge-libre{% endif %}">{{ t.tipo_etiqueta }}</span></td>
                     <td><strong>{{ t.moneda_origen }}</strong></td>
                     <td><strong>{{ t.moneda_destino }}</strong></td>
                     <td>
@@ -74,6 +76,7 @@
 <div class="callout callout-info mt-3">
     <strong>Cómo se usan las tasas</strong>
     <p>Las tasas registradas aquí <strong>no afectan automáticamente</strong> los reportes. Solo se muestran en el reporte mensual como referencia para un <em>"Balance unificado estimado"</em>.</p>
-    <p>Para que aparezca el balance unificado, registra una tasa de COP → USD y/o COP → VES con la tasa vigente.</p>
+    <p><strong>Nuevo:</strong> Para VES, registra las tasas <em>VES Compra</em> y <em>VES Venta</em> y el sistema las promedia automáticamente. Para USD, la <em>Tasa Táchira</em> tiene prioridad sobre la tasa directa.</p>
+    <p>Para que aparezca el balance unificado en reportes, registra una tasa directa COP→USD o tipo Tasa Táchira.</p>
 </div>
 {% endblock %}

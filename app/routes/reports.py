@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, request
 from flask_login import login_required
-from ..models import db, Pedido, Mesa, Gasto, TasaCambio
+from ..models import db, Pedido, Mesa, Gasto
 from ..utils.decorators import role_required
+from ..utils.currency import obtener_tasas_cop, get_tasa_activa
 from datetime import datetime, date
 
 reports_bp = Blueprint('reports', __name__)
@@ -25,6 +26,13 @@ def index():
 
     total_vendido_cop = sum(item.subtotal_cop for pedido in pedidos_hoy for item in pedido.items)
     total_pedidos_hoy = len(pedidos_hoy)
+
+    # ── Pedidos pendientes (deuda) ──
+    pedidos_pendientes = Pedido.query.filter(
+        Pedido.estado == 'pendiente',
+    ).all()
+    total_pendientes_hoy = len(pedidos_pendientes)
+    total_deuda_pendiente = sum(p.total for p in pedidos_pendientes)
 
     # Desglose por moneda de pago
     monedas_resumen = {}
@@ -55,9 +63,12 @@ def index():
         fecha=today,
         total_vendido_cop=total_vendido_cop,
         total_pedidos_hoy=total_pedidos_hoy,
+        total_pendientes_hoy=total_pendientes_hoy,
+        total_deuda_pendiente=total_deuda_pendiente,
         monedas_resumen=monedas_resumen,
         top_productos=top_productos,
         pedidos_hoy=pedidos_hoy,
+        pedidos_pendientes=pedidos_pendientes,
         mesas_libres=mesas_libres,
         mesas_ocupadas=mesas_ocupadas,
     )
@@ -168,23 +179,22 @@ def monthly():
     gastos_cop = gastos_por_moneda.get('COP', 0)
     balance_cop = total_vendido_cop - gastos_cop
 
-    # ── Balance unificado (opcional, requiere TasaCambio) ──
-    tasas_relevantes = {}
-    # Buscar tasas COP → USD y COP → VES vigentes
-    for par in [('COP', 'USD'), ('COP', 'VES'), ('USD', 'COP'), ('VES', 'COP')]:
-        tasa = TasaCambio.query.filter_by(
-            moneda_origen=par[0],
-            moneda_destino=par[1],
-        ).order_by(TasaCambio.vigente_desde.desc()).first()
-        if tasa:
-            tasas_relevantes[f'{par[0]}→{par[1]}'] = tasa
+    # ── Balance unificado (opcional, usando tasa centralizada) ──
+    _, _, _, _, tasa_tachira = obtener_tasas_cop()
 
     balance_unificado = None
     tasa_usada = None
-    if 'COP→USD' in tasas_relevantes:
-        tasa_usd = tasas_relevantes['COP→USD'].tasa
-        # Convertir todo a USD (ingresos COP + gastos COP + gastos USD ya están en USD)
-        # Solo podemos convertir COP a USD con precisión
+
+    # Usar Tasa Táchira si existe, sino directa USD→COP
+    tasa_usd_obj = get_tasa_activa('USD', 'COP', tipo='tachira_usd') if not tasa_tachira else None
+    tasa_usd_para_reporte = tasa_tachira
+    if not tasa_usd_para_reporte:
+        tasa_usd_obj = get_tasa_activa('USD', 'COP')
+        if tasa_usd_obj:
+            tasa_usd_para_reporte = tasa_usd_obj.tasa
+
+    if tasa_usd_para_reporte:
+        tasa_usd = tasa_usd_para_reporte
         ingresos_usd = round(total_vendido_cop / tasa_usd, 2)
         gastos_usd = round(gastos_cop / tasa_usd, 2)
         gastos_usd_directos = gastos_por_moneda.get('USD', 0)
@@ -195,10 +205,10 @@ def monthly():
             'ingresos': ingresos_usd,
             'gastos': total_gastos_usd,
             'balance': balance_usd,
-            'tasa_usada': f'1 COP = {1/tasa_usd:.6f} USD' if tasa_usd > 0 else 'N/A',
-            'tasa_origen': tasas_relevantes['COP→USD'],
+            'tasa_usada': f'1 USD = {tasa_usd:,.2f} COP' if tasa_usd > 0 else 'N/A',
+            'tasa_origen': None,
         }
-        tasa_usada = 'COP→USD'
+        tasa_usada = 'USD→COP'
 
     return render_template(
         'reports/monthly.html',
@@ -219,5 +229,4 @@ def monthly():
         gastos_cop=gastos_cop,
         balance_cop=balance_cop,
         balance_unificado=balance_unificado,
-        tasas_relevantes=tasas_relevantes,
     )

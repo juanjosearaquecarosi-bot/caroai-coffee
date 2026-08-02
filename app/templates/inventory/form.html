@@ -49,9 +49,16 @@
                     </div>
                     <div class="flex-1">
                         <div class="form-group">
-                            <label for="stock_minimo" class="form-label">Stock mínimo</label>
+                            <label for="stock_minimo" class="form-label">Stock mínimo <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
                             <input type="number" class="form-input" id="stock_minimo" name="stock_minimo"
-                                   value="{{ insumo.stock_minimo if insumo else '' }}" required min="0" placeholder="0">
+                                   value="{{ insumo.stock_minimo if insumo else '' }}" min="0" placeholder="0">
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-group">
+                            <label for="stock_maximo" class="form-label">Stock máximo <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                            <input type="number" class="form-input" id="stock_maximo" name="stock_maximo"
+                                   value="{{ insumo.stock_maximo if insumo else '' }}" min="0" placeholder="0">
                         </div>
                     </div>
                 </div>

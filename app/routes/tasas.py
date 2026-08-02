@@ -25,10 +25,18 @@ def index():
 @login_required
 @role_required('admin')
 def create():
+    TIPOS_TASA = {
+        '': 'Directa (original)',
+        'ves_compra': '🇻🇪 VES Compra',
+        'ves_venta': '🇻🇪 VES Venta',
+        'tachira_usd': '🇺🇸 Tasa Táchira (USD)',
+    }
+
     if request.method == 'POST':
         moneda_origen = request.form.get('moneda_origen', '').strip()
         moneda_destino = request.form.get('moneda_destino', '').strip()
         tasa = request.form.get('tasa', type=float)
+        tipo = request.form.get('tipo', '').strip() or None
         vigente_desde_str = request.form.get('vigente_desde', '').strip()
 
         if not moneda_origen or not moneda_destino or not tasa or tasa <= 0:
@@ -49,15 +57,17 @@ def create():
             moneda_origen=moneda_origen,
             moneda_destino=moneda_destino,
             tasa=tasa,
+            tipo=tipo,
             vigente_desde=vigente_desde,
         )
         db.session.add(t)
         db.session.commit()
-        flash(f'Tasa creada: 1 {moneda_origen} = {tasa} {moneda_destino}', 'success')
+        tipo_label = TIPOS_TASA.get(tipo or '', 'Directa')
+        flash(f'Tasa creada: 1 {moneda_origen} = {tasa} {moneda_destino} [{tipo_label}]', 'success')
         return redirect(url_for('tasas.index'))
 
     now_str = datetime.utcnow().strftime('%Y-%m-%dT%H:%M')
-    return render_template('tasas/form.html', action='Crear', tasa=None, now_str=now_str)
+    return render_template('tasas/form.html', action='Crear', tasa=None, now_str=now_str, tipos_tasa=TIPOS_TASA)
 
 
 # ──────────────────────────────────────────────
@@ -69,10 +79,18 @@ def create():
 def edit(id):
     t = TasaCambio.query.get_or_404(id)
 
+    TIPOS_TASA = {
+        '': 'Directa (original)',
+        'ves_compra': '🇻🇪 VES Compra',
+        'ves_venta': '🇻🇪 VES Venta',
+        'tachira_usd': '🇺🇸 Tasa Táchira (USD)',
+    }
+
     if request.method == 'POST':
         t.moneda_origen = request.form.get('moneda_origen', '').strip()
         t.moneda_destino = request.form.get('moneda_destino', '').strip()
         t.tasa = request.form.get('tasa', type=float)
+        t.tipo = request.form.get('tipo', '').strip() or None
         vigente_desde_str = request.form.get('vigente_desde', '').strip()
 
         if not t.moneda_origen or not t.moneda_destino or not t.tasa or t.tasa <= 0:
@@ -94,7 +112,7 @@ def edit(id):
         return redirect(url_for('tasas.index'))
 
     now_str = t.vigente_desde.strftime('%Y-%m-%dT%H:%M')
-    return render_template('tasas/form.html', action='Editar', tasa=t, now_str=now_str)
+    return render_template('tasas/form.html', action='Editar', tasa=t, now_str=now_str, tipos_tasa=TIPOS_TASA)
 
 
 # ──────────────────────────────────────────────

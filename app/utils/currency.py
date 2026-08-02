@@ -1,194 +1,218 @@
 from ..models import TasaCambio
 
 # ──────────────────────────────────────────────
-#  CONVERSIÓN BASE: tasas simples
-# ──────────────────────────────────────────────
-
-def convert_cop_to_usd(amount_cop, tasa_cop_usd):
-    """
-    Convert an amount from COP to USD.
-    amount_cop: amount in COP
-    tasa_cop_usd: exchange rate (COP per 1 USD)
-    Returns amount in USD.
-    """
-    if tasa_cop_usd == 0:
-        return 0
-    return amount_cop / tasa_cop_usd
-
-
-def convert_cop_to_bs(amount_cop, tasa_cop_usd, tasa_tienda_bs_usd):
-    """
-    Convert an amount from COP to Bolivares using the given rates.
-    First convert COP to USD, then USD to Bs using tasa_tienda_bs_usd.
-    amount_cop: amount in COP
-    tasa_cop_usd: exchange rate (COP per 1 USD)
-    tasa_tienda_bs_usd: exchange rate (Bs per 1 USD) - the real rate used
-    Returns amount in Bs.
-    """
-    if tasa_cop_usd == 0:
-        return 0
-    amount_usd = amount_cop / tasa_cop_usd
-    return amount_usd * tasa_tienda_bs_usd
-
-
-def convert_bs_to_cop(amount_bs, tasa_cop_usd, tasa_tienda_bs_usd):
-    """
-    Convert an amount from Bolivares to COP.
-    """
-    if tasa_tienda_bs_usd == 0:
-        return 0
-    amount_usd = amount_bs / tasa_tienda_bs_usd
-    return amount_usd * tasa_cop_usd
-
-
-# ──────────────────────────────────────────────
 #  CENTRALIZED: lookup activa desde DB
 # ──────────────────────────────────────────────
 
-def get_tasa_activa(moneda_origen, moneda_destino):
+def get_tasa_activa(moneda_origen, moneda_destino, tipo=None):
     """
     Retorna la tasa de cambio activa más reciente desde TasaCambio,
     o None si no existe ninguna.
 
-    La tasa activa es la última creada (por vigente_desde DESC).
+    Si tipo es especificado, busca solo tasas con ese tipo.
+    Si tipo es None, busca solo tasas sin tipo (directas).
     """
-    t = TasaCambio.query.filter_by(
+    q = TasaCambio.query.filter_by(
         moneda_origen=moneda_origen,
         moneda_destino=moneda_destino,
-    ).order_by(TasaCambio.vigente_desde.desc()).first()
-    return t
+    )
+    if tipo is not None:
+        q = q.filter_by(tipo=tipo)
+    else:
+        q = q.filter(TasaCambio.tipo.is_(None))
+    return q.order_by(TasaCambio.vigente_desde.desc()).first()
 
 
 def obtener_tasas_cop():
     """
-    Retorna (tasa_usd, tasa_bs) donde:
-      tasa_usd = cuántos COP vale 1 USD  (1 USD = X COP)
-      tasa_bs  = cuántos COP vale 1 VES (1 VES = X COP)
+    Retorna (tasa_usd, tasa_bs, tasa_ves_compra, tasa_ves_venta, tasa_tachira)
+    donde:
+      tasa_usd       = cuántos COP vale 1 USD  (1 USD = X COP) — tasa directa o inversa
+      tasa_bs        = cuántos COP vale 1 VES (1 VES = X COP) — promedio compra/venta si están configuradas
+      tasa_ves_compra = tasa VES compra (VES→COP) o None
+      tasa_ves_venta  = tasa VES venta (VES→COP) o None
+      tasa_tachira    = tasa Táchira (USD→COP) o None
 
-    Busca primero 'USD→COP' / 'VES→COP'.
-    Si no existe, busca la inversa 'COP→USD' / 'COP→VES' y la invierte.
-
-    Si no se encuentra ninguna tasa, retorna (4200.0, 6.0) como fallback
-    para no romper la visualización.
+    Fallbacks si no se encuentra ninguna tasa:
+      tasa_usd = 4200.0
+      tasa_bs  = 6.0
     """
-    # ── USD → COP ──
-    t = get_tasa_activa('USD', 'COP')
+    # ── USD → COP (tasa Táchira tiene prioridad) ──
+    t = get_tasa_activa('USD', 'COP', tipo='tachira_usd')
     if t:
         tasa_usd = t.tasa
+        tasa_tachira = t.tasa
     else:
-        t = get_tasa_activa('COP', 'USD')
-        if t and t.tasa > 0:
-            tasa_usd = round(1 / t.tasa, 2)
+        t = get_tasa_activa('USD', 'COP')
+        if t:
+            tasa_usd = t.tasa
         else:
-            tasa_usd = 4200.0
+            t = get_tasa_activa('COP', 'USD')
+            if t and t.tasa > 0:
+                tasa_usd = round(1 / t.tasa, 2)
+            else:
+                tasa_usd = 4200.0
+        tasa_tachira = None
 
-    # ── VES → COP ──
-    t = get_tasa_activa('VES', 'COP')
-    if t:
-        tasa_bs = t.tasa
+    # ── VES → COP: usar promedio compra/venta si están configuradas ──
+    tasa_ves_compra = get_tasa_activa('VES', 'COP', tipo='ves_compra')
+    tasa_ves_venta = get_tasa_activa('VES', 'COP', tipo='ves_venta')
+
+    if tasa_ves_compra and tasa_ves_venta:
+        # Promedio compra/venta
+        tasa_bs = round((tasa_ves_compra.tasa + tasa_ves_venta.tasa) / 2, 2)
+    elif tasa_ves_compra:
+        tasa_bs = tasa_ves_compra.tasa
+    elif tasa_ves_venta:
+        tasa_bs = tasa_ves_venta.tasa
     else:
-        t = get_tasa_activa('COP', 'VES')
-        if t and t.tasa > 0:
-            tasa_bs = round(1 / t.tasa, 2)
+        # Fallback a tasa directa VES→COP o inversa
+        t = get_tasa_activa('VES', 'COP')
+        if t:
+            tasa_bs = t.tasa
         else:
-            tasa_bs = 6.0
+            t = get_tasa_activa('COP', 'VES')
+            if t and t.tasa > 0:
+                tasa_bs = round(1 / t.tasa, 2)
+            else:
+                tasa_bs = 6.0
 
-    return tasa_usd, tasa_bs
+    return (
+        tasa_usd,
+        tasa_bs,
+        tasa_ves_compra.tasa if tasa_ves_compra else None,
+        tasa_ves_venta.tasa if tasa_ves_venta else None,
+        tasa_tachira,
+    )
 
 
 def convertir_cop_a(monto_cop, moneda_destino):
     """
-    Convierte monto_cop a la moneda_destino usando la tasa activa de TasaCambio.
+    Convierte monto_cop a la moneda_destino usando las tasas activas de TasaCambio.
+
+    Lógica:
+      - COP → COP: sin cambio
+      - COP → USD: usa tasa Táchira si existe, sino tasa USD directa
+      - COP → VES: usa promedio compra/venta si existen, sino tasa VES directa
 
     Parámetros:
       monto_cop      — total en COP
-      moneda_destino — 'USD', 'VES' o 'COP' (no convierte)
+      moneda_destino — 'USD', 'VES' o 'COP'
 
     Retorna:
       (monto_convertido, tasa_aplicada, mensaje_error)
-      - Si la moneda es 'COP': monto_convertido = monto_cop, tasa_aplicada = 1.0
-      - Si existe tasa activa: monto convertido y tasa aplicada
-      - Si NO existe tasa: (None, None, mensaje de error)
     """
     if moneda_destino == 'COP':
         return monto_cop, 1.0, None
 
-    tasa_obj = get_tasa_activa(moneda_destino, 'COP')
-    if not tasa_obj:
-        # Intentar inversa
-        tasa_obj = get_tasa_activa('COP', moneda_destino)
-        if tasa_obj and tasa_obj.tasa > 0:
-            tasa_val = round(1 / tasa_obj.tasa, 2)
+    if moneda_destino == 'USD':
+        # Prioridad: Tasa Táchira → USD directa → COP→USD inversa
+        t = get_tasa_activa('USD', 'COP', tipo='tachira_usd')
+        if t:
+            tasa_val = t.tasa
         else:
-            return None, None, (
-                f'⚠️ No hay tasa activa configurada para {moneda_destino} → COP. '
-                f'Ve a Tasas de Cambio y crea una antes de cobrar en {moneda_destino}.'
-            )
-    else:
-        tasa_val = tasa_obj.tasa
+            t = get_tasa_activa('USD', 'COP')
+            if t:
+                tasa_val = t.tasa
+            else:
+                t = get_tasa_activa('COP', 'USD')
+                if t and t.tasa > 0:
+                    tasa_val = round(1 / t.tasa, 2)
+                else:
+                    return None, None, (
+                        '⚠️ No hay tasa USD activa configurada. '
+                        'Ve a Tasas de Cambio y crea una tasa USD→COP antes de cobrar en USD.'
+                    )
+        monto = round(monto_cop / tasa_val, 2)
+        return monto, tasa_val, None
 
-    if tasa_val <= 0:
-        return None, None, f'⚠️ La tasa {moneda_destino}→COP tiene un valor inválido ({tasa_val}).'
+    elif moneda_destino == 'VES':
+        # Usar promedio compra/venta si están configuradas
+        ves_compra = get_tasa_activa('VES', 'COP', tipo='ves_compra')
+        ves_venta = get_tasa_activa('VES', 'COP', tipo='ves_venta')
 
-    if moneda_destino in ('USD', 'VES'):
-        # 1 USD/VES = tasa_val COP  →  monto = monto_cop / tasa_val
-        monto = monto_cop / tasa_val
+        if ves_compra and ves_venta:
+            tasa_val = round((ves_compra.tasa + ves_venta.tasa) / 2, 2)
+        elif ves_compra:
+            tasa_val = ves_compra.tasa
+        elif ves_venta:
+            tasa_val = ves_venta.tasa
+        else:
+            # Fallback a tasa directa VES→COP o inversa
+            t = get_tasa_activa('VES', 'COP')
+            if t:
+                tasa_val = t.tasa
+            else:
+                t = get_tasa_activa('COP', 'VES')
+                if t and t.tasa > 0:
+                    tasa_val = round(1 / t.tasa, 2)
+                else:
+                    return None, None, (
+                        '⚠️ No hay tasa VES activa configurada. '
+                        'Ve a Tasas de Cambio y crea una tasa VES→COP antes de cobrar en VES.'
+                    )
+
+        monto = round(monto_cop / tasa_val, 2)
+        return monto, tasa_val, None
+
     else:
         return None, None, f'Moneda no soportada: {moneda_destino}'
-
-    return round(monto, 2), tasa_val, None
 
 
 # ══════════════════════════════════════════════
 #  TEST / VERIFICACIÓN (uso standalone)
-# ═══════════════════════════════════════════════
+# ══════════════════════════════════════════════
 
 def probar_conversion_simple():
     """
     Prueba la lógica de conversión con valores conocidos, SIN base de datos.
     Útil para verificar que el cálculo matemático es correcto.
-    Uso: python -c "from app.utils.currency import probar_conversion_simple; probar_conversion_simple()"
     """
     ok = True
 
     # 1) COP → COP: sin cambio
-    monto, tasa, err = 45000, 1.0, None  # simula resultado de convertir_cop_a
-    esperado_monto = 45000
-    if monto != esperado_monto:
-        print(f"❌ COP→COP: esperado {esperado_monto}, obtenido {monto}")
+    monto, tasa, err = 45000, 1.0, None
+    if monto != 45000:
+        print(f"❌ COP→COP: esperado 45000, obtenido {monto}")
         ok = False
     else:
         print(f"✅ COP→COP: {monto} (tasa={tasa})")
 
     # 2) COP → USD con tasa 4200
     monto = round(42000 / 4200, 2)  # 10.0
-    esperado_monto = 10.0
-    if monto != esperado_monto:
-        print(f"❌ COP→USD (4200): esperado {esperado_monto}, obtenido {monto}")
+    if monto != 10.0:
+        print(f"❌ COP→USD (4200): esperado 10.0, obtenido {monto}")
         ok = False
     else:
         print(f"✅ COP→USD (4200): ${monto} USD")
 
-    # 3) COP → VES con tasa 6.0
-    monto = round(45000 / 6.0, 2)  # 7500.0
-    esperado_monto = 7500.0
-    if monto != esperado_monto:
-        print(f"❌ COP→VES (6.0): esperado {esperado_monto}, obtenido {monto}")
+    # 3) COP → VES con promedio 1.5+2.5/2 = 2.0
+    prom = round((1.5 + 2.5) / 2, 2)  # 2.0
+    monto = round(45000 / prom, 2)  # 22500.0
+    if monto != 22500.0:
+        print(f"❌ COP→VES promedio: esperado 22500.0, obtenido {monto}")
         ok = False
     else:
-        print(f"✅ COP→VES (6.0): Bs {monto}")
+        print(f"✅ COP→VES promedio (compra=1.5, venta=2.5): Bs {monto}")
 
-    # 4) Caso límite: monto 0
-    monto = round(0 / 4200, 2)  # 0.0
+    # 4) COP → VES con una sola tasa compra
+    monto = round(45000 / 1.5, 2)  # 30000.0
+    if monto != 30000.0:
+        print(f"❌ COP→VES solo compra: esperado 30000.0, obtenido {monto}")
+        ok = False
+    else:
+        print(f"✅ COP→VES solo compra (1.5): Bs {monto}")
+
+    # 5) Caso límite: monto 0
+    monto = round(0 / 4200, 2)
     if monto != 0.0:
-        print(f"❌ COP→USD con 0: esperado 0.0, obtenido {monto}")
+        print(f"❌ Monto 0: esperado 0.0, obtenido {monto}")
         ok = False
     else:
-        print(f"✅ COP→USD con 0: {monto}")
+        print(f"✅ Monto 0: {monto}")
 
-    # 5) Tasa inválida (0): la función debería retornar error
-    tasa_invalida = 0
-    monto = 10000 / tasa_invalida if tasa_invalida > 0 else None
+    # 6) Tasa inválida (0)
+    monto = 10000 / 0 if 0 > 0 else None
     if monto is not None:
         print(f"❌ Tasa 0 debería dar error, pero dio {monto}")
         ok = False

@@ -1,6 +1,6 @@
 import logging
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, abort
-from flask_login import login_required
+from flask_login import login_required, current_user
 from ..models import db, Mesa, Pedido, PedidoItem, Producto
 from ..utils.decorators import role_required
 from ..utils.currency import obtener_tasas_cop, convertir_cop_a
@@ -101,7 +101,7 @@ def mesa(mesa_id):
     if pedido:
         total_cop = sum(i.subtotal_cop for i in pedido.items)
 
-    tasa_usd, tasa_bs = obtener_tasas_cop()
+    tasa_usd, tasa_bs, *_ = obtener_tasas_cop()
 
     return render_template('pos/mesa.html',
                            mesa=mesa, pedido=pedido,
@@ -224,6 +224,8 @@ def charge(mesa_id):
     pedido = Pedido.query.filter_by(mesa_id=mesa_id, estado='abierto').first()
 
     if not pedido or not pedido.items:
+        if _is_ajax():
+            return jsonify({'ok': False, 'error': 'No hay productos para cobrar.'}), 400
         flash('No hay productos para cobrar.', 'warning')
         return redirect(url_for('pos.mesa', mesa_id=mesa_id))
 
@@ -240,11 +242,17 @@ def charge(mesa_id):
     if moneda_pago != 'COP':
         monto_convertido, tasa_val, error_msg = convertir_cop_a(total_cop, moneda_pago)
         if error_msg:
+            if _is_ajax():
+                return jsonify({'ok': False, 'error': error_msg}), 400
             flash(error_msg, 'warning')
             return redirect(url_for('pos.mesa', mesa_id=mesa_id))
-        # Usar la tasa del formulario (permite ajuste manual), pero validamos que exista
-        tasa_final = float(tasa_str) if tasa_str else tasa_val
-        total_moneda_final = float(total_moneda_str) if total_moneda_str else monto_convertido
+        # Solo admin puede sobreescribir la tasa manualmente; employee usa la de BD
+        if current_user.rol == 'admin' and tasa_str:
+            tasa_final = float(tasa_str)
+            total_moneda_final = float(total_moneda_str) if total_moneda_str else monto_convertido
+        else:
+            tasa_final = tasa_val
+            total_moneda_final = monto_convertido
     else:
         tasa_final = 1.0
         total_moneda_final = None
@@ -266,27 +274,40 @@ def charge(mesa_id):
     db.session.commit()
 
     flash_moneda = f'{moneda_pago} {total_moneda_final}' if total_moneda_final else f'${total_cop:,} COP'
+
+    if _is_ajax():
+        return jsonify({
+            'ok': True,
+            'message': f'✅ {mesa.nombre} cobrada · {flash_moneda}',
+            'pedido_id': pedido.id,
+            'mesa_nombre': mesa.nombre,
+        })
+
     flash(f'✅ {mesa.nombre} cobrada · {flash_moneda}', 'success')
     return redirect(url_for('pos.index'))
 
 
 # ══════════════════════════════════════════════
-#  7. MARCAR COMO PENDIENTE
+#  7. MARCAR COMO PENDIENTE (libera mesa)
 # ══════════════════════════════════════════════
 
 @pos_bp.route('/<int:mesa_id>/pendiente', methods=['POST'])
 @login_required
 @role_required('admin', 'employee')
 def pendiente(mesa_id):
+    mesa = db.session.get(Mesa, mesa_id)
     pedido = Pedido.query.filter_by(mesa_id=mesa_id, estado='abierto').first()
     if not pedido:
         flash('No hay pedido abierto.', 'warning')
         return redirect(url_for('pos.index'))
 
     pedido.estado = 'pendiente'
+    # Liberar la mesa forzadamente
+    mesa.estado = 'libre'
+    mesa.fecha_apertura = None
     db.session.commit()
 
-    flash(f'Pedido #{pedido.id} marcado como pendiente.', 'info')
+    flash(f'Pedido #{pedido.id} marcado como pendiente. Mesa {mesa.nombre} liberada.', 'info')
     return redirect(url_for('pos.index'))
 
 
@@ -299,7 +320,7 @@ def pendiente(mesa_id):
 @role_required('admin', 'employee')
 def history():
     pedidos = Pedido.query.filter(
-        Pedido.estado.in_(['pagado', 'pendiente'])
+        Pedido.estado.in_(['pagado', 'pendiente', 'abierto', 'anulado'])
     ).order_by(Pedido.fecha_hora.desc()).all()
     return render_template('pos/history.html', pedidos=pedidos)
 
@@ -319,6 +340,139 @@ def detail(pedido_id):
 
 
 # ══════════════════════════════════════════════
+#  9B. EDITAR PEDIDO (solo abierto)
+# ══════════════════════════════════════════════
+
+@pos_bp.route('/pedido/<int:pedido_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'employee')
+def edit(pedido_id):
+    """Editar un pedido abierto: cambiar cantidades, eliminar líneas, agregar productos."""
+    pedido = db.session.get(Pedido, pedido_id)
+    if not pedido:
+        flash('Pedido no encontrado.', 'danger')
+        return redirect(url_for('pos.history'))
+
+    if pedido.estado != 'abierto':
+        if current_user.rol == 'admin':
+            flash('Este pedido ya está cerrado. Solo puedes anularlo desde el detalle.', 'warning')
+            return redirect(url_for('pos.detail', pedido_id=pedido.id))
+        flash('Este pedido no está abierto y no puede editarse.', 'warning')
+        return redirect(url_for('pos.history'))
+
+    mesa = db.session.get(Mesa, pedido.mesa_id)
+    productos = Producto.query.order_by(Producto.tipo, Producto.nombre).all()
+    catalogo = {
+        "bebida": [p for p in productos if (p.tipo or "").strip().lower() == "bebida"],
+        "comida": [p for p in productos if (p.tipo or "").strip().lower() == "comida"],
+        "grano": [p for p in productos if (p.tipo or "").strip().lower() == "grano"],
+        "cerveza": [p for p in productos if (p.tipo or "").strip().lower() == "cerveza"],
+    }
+
+    if request.method == 'POST':
+        action = request.form.get('action', '')
+
+        if action == 'update_qty':
+            item_id = request.form.get('item_id', type=int)
+            cantidad = request.form.get('cantidad', type=int, default=1)
+            item = db.session.get(PedidoItem, item_id)
+            if item and item.pedido_id == pedido.id:
+                if cantidad <= 0:
+                    db.session.delete(item)
+                else:
+                    item.cantidad = cantidad
+                    item.subtotal_cop = item.precio_unitario_cop * cantidad
+                db.session.commit()
+
+        elif action == 'remove_item':
+            item_id = request.form.get('item_id', type=int)
+            item = db.session.get(PedidoItem, item_id)
+            if item and item.pedido_id == pedido.id:
+                db.session.delete(item)
+                db.session.commit()
+
+        elif action == 'add_product':
+            producto_id = request.form.get('producto_id', type=int)
+            cantidad = request.form.get('cantidad', 1, type=int)
+            producto = db.session.get(Producto, producto_id) if producto_id else None
+            if producto and cantidad > 0:
+                precio = producto.precio_cop or producto.precio_venta_cop or 0
+                item_existente = next((i for i in pedido.items if i.producto_id == producto_id), None)
+                if item_existente:
+                    item_existente.cantidad += cantidad
+                    item_existente.subtotal_cop = item_existente.precio_unitario_cop * item_existente.cantidad
+                else:
+                    db.session.add(PedidoItem(
+                        pedido_id=pedido.id,
+                        producto_id=producto.id,
+                        cantidad=cantidad,
+                        precio_unitario_cop=precio,
+                        subtotal_cop=precio * cantidad,
+                    ))
+                db.session.commit()
+
+        elif action == 'add_manual':
+            descripcion = request.form.get('descripcion', '').strip()
+            monto = request.form.get('monto', type=int, default=0)
+            cantidad = request.form.get('cantidad', 1, type=int)
+            if descripcion and monto > 0:
+                db.session.add(PedidoItem(
+                    pedido_id=pedido.id,
+                    producto_id=None,
+                    cantidad=cantidad,
+                    precio_unitario_cop=monto,
+                    subtotal_cop=monto * cantidad,
+                    nota=descripcion,
+                ))
+                db.session.commit()
+
+        # Recalcular total
+        pedido.total = sum(i.subtotal_cop for i in pedido.items)
+        db.session.commit()
+
+        flash('Pedido actualizado.', 'success')
+        return redirect(url_for('pos.edit', pedido_id=pedido.id))
+
+    total_cop = sum(i.subtotal_cop for i in pedido.items)
+    tasa_usd, tasa_bs, *_ = obtener_tasas_cop()
+    return render_template('pos/edit.html',
+                           pedido=pedido, mesa=mesa,
+                           catalogo=catalogo,
+                           total_cop=total_cop,
+                           tasa_usd=tasa_usd, tasa_bs=tasa_bs)
+
+
+# ══════════════════════════════════════════════
+#  9C. ELIMINAR PEDIDO (hard delete, solo abierto)
+# ══════════════════════════════════════════════
+
+@pos_bp.route('/pedido/<int:pedido_id>/delete', methods=['POST'])
+@login_required
+@role_required('admin')
+def delete(pedido_id):
+    """Elimina físicamente un pedido abierto. Solo admin."""
+    pedido = db.session.get(Pedido, pedido_id)
+    if not pedido:
+        flash('Pedido no encontrado.', 'danger')
+        return redirect(url_for('pos.history'))
+
+    if pedido.estado != 'abierto':
+        flash('Solo se pueden eliminar pedidos abiertos. Usa anular para pedidos cerrados.', 'warning')
+        return redirect(url_for('pos.history'))
+
+    mesa = db.session.get(Mesa, pedido.mesa_id)
+    if mesa:
+        mesa.estado = 'libre'
+        mesa.fecha_apertura = None
+
+    db.session.delete(pedido)
+    db.session.commit()
+
+    flash(f'🗑️ Pedido #{pedido_id} eliminado permanentemente.', 'info')
+    return redirect(url_for('pos.history'))
+
+
+# ══════════════════════════════════════════════
 #  HELPERS
 # ══════════════════════════════════════════════
 
@@ -326,12 +480,104 @@ def _is_ajax():
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
 
+# ══════════════════════════════════════════════
+#  10. AÑADIR MONTO MANUAL
+# ══════════════════════════════════════════════
+
+@pos_bp.route('/<int:mesa_id>/add_manual', methods=['POST'])
+@login_required
+@role_required('admin', 'employee')
+def add_manual(mesa_id):
+    """Agrega un cargo manual (monto sin producto) al pedido abierto."""
+    mesa = db.session.get(Mesa, mesa_id)
+    if not mesa:
+        return jsonify({'ok': False, 'error': 'Mesa no encontrada'}), 404
+
+    pedido = Pedido.query.filter_by(mesa_id=mesa.id, estado='abierto').first()
+    if not pedido:
+        if mesa.estado == 'libre':
+            mesa.estado = 'ocupada'
+            mesa.fecha_apertura = datetime.utcnow()
+        pedido = Pedido(mesa_id=mesa.id, total=0, estado='abierto')
+        db.session.add(pedido)
+        db.session.flush()
+
+    descripcion = request.form.get('descripcion', '').strip()
+    monto = request.form.get('monto', type=int, default=0)
+    cantidad = request.form.get('cantidad', 1, type=int)
+    if cantidad < 1:
+        cantidad = 1
+
+    if not descripcion:
+        return jsonify({'ok': False, 'error': 'Descripción requerida'}), 400
+    if monto <= 0:
+        return jsonify({'ok': False, 'error': 'El monto debe ser mayor a 0'}), 400
+
+    item = PedidoItem(
+        pedido_id=pedido.id,
+        producto_id=None,
+        cantidad=cantidad,
+        precio_unitario_cop=monto,
+        subtotal_cop=monto * cantidad,
+        nota=descripcion,
+    )
+    db.session.add(item)
+    db.session.commit()
+
+    total = sum(i.subtotal_cop for i in pedido.items)
+
+    if _is_ajax():
+        return jsonify({
+            'ok': True,
+            'items': _items_json(pedido),
+            'total': total,
+            'message': f'💰 Cargo manual «{descripcion}» agregado · ${monto:,}',
+        })
+
+    flash(f'💰 Cargo manual «{descripcion}» · ${monto:,}', 'success')
+    return redirect(url_for('pos.mesa', mesa_id=mesa.id))
+
+
+# ══════════════════════════════════════════════
+#  11. ANULAR PEDIDO (solo admin)
+# ══════════════════════════════════════════════
+
+@pos_bp.route('/pedido/<int:pedido_id>/anular', methods=['POST'])
+@login_required
+@role_required('admin')
+def anular(pedido_id):
+    """Anula un pedido pagado o pendiente. Solo admin."""
+    pedido = db.session.get(Pedido, pedido_id)
+    if not pedido:
+        flash('Pedido no encontrado.', 'danger')
+        return redirect(url_for('pos.history'))
+
+    if pedido.estado not in ('pagado', 'pendiente'):
+        flash(f'No se puede anular un pedido en estado «{pedido.estado}».', 'warning')
+        return redirect(url_for('pos.history'))
+
+    motivo = request.form.get('motivo', '').strip()
+
+    pedido.estado = 'anulado'
+
+    # Anular lógicamente todos los items
+    now = datetime.utcnow()
+    for item in pedido.items:
+        item.anulado_en = now
+        item.motivo_anulacion = motivo if motivo else 'Anulado por administrador'
+
+    db.session.commit()
+    flash(f'🗑️ Pedido #{pedido.id} anulado.' + (f' Motivo: {motivo}' if motivo else ''), 'warning')
+    return redirect(url_for('pos.history'))
+
+
 def _items_json(pedido):
     return [{
         'id': i.id,
         'producto_id': i.producto_id,
-        'nombre': i.producto.nombre,
+        'nombre': i.nota or (i.producto.nombre if i.producto else 'Cargo manual'),
         'cantidad': i.cantidad,
         'precio': i.precio_unitario_cop,
         'subtotal': i.subtotal_cop,
+        'manual': i.producto_id is None,
     } for i in pedido.items]

@@ -2,6 +2,24 @@
 {% block title %}Historial · POS · Caroai Café{% endblock %}
 
 {% block content %}
+<script>
+function anularPedido(pedidoId) {
+    var motivo = prompt('¿Motivo de la anulación? (opcional)');
+    if (motivo === null) return; // cancelled
+    var fd = new FormData();
+    fd.append('motivo', motivo || '');
+    fd.append('csrf_token', '{{ csrf_token() }}');
+    fetch('/pos/pedido/' + pedidoId + '/anular', {
+        method: 'POST', body: fd,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(function(r) {
+        if (r.redirected) { location.href = r.url; return; }
+        location.reload();
+    })
+    .catch(function() { location.reload(); });
+}
+</script>
 <div class="page-header">
     <div>
         <h1>Historial de ventas</h1>
@@ -41,11 +59,17 @@
                     <span class="badge badge-pagado"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Pagado</span>
                     {% elif p.estado == 'pendiente' %}
                     <span class="badge badge-ocupada"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Pendiente</span>
+                    {% elif p.estado == 'abierto' %}
+                    <span class="badge badge-abierto"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Abierto</span>
+                    {% elif p.estado == 'anulado' %}
+                    <span class="badge badge-anulado"><svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg> Anulado</span>
                     {% endif %}
                 </td>
                 <td>
                     {% set names = p.items|map(attribute='producto.nombre')|list %}
-                    <span title="{{ names|join(', ') }}">{{ names|join(', ') | truncate(35) }}</span>
+                    {% set manual_names = p.items|selectattr('nota')|map(attribute='nota')|list %}
+                    {% set all_names = names + manual_names %}
+                    <span title="{{ all_names|join(', ') }}">{{ all_names|join(', ') | truncate(35) }}</span>
                 </td>
                 <td class="capitalize">
                     {% if p.metodo_pago %}
@@ -56,7 +80,26 @@
                 </td>
                 <td><strong class="mono-number">${{ "{:,}".format(p.total) }}</strong></td>
                 <td class="cell-actions">
+                    {% if p.estado == 'abierto' %}
+                    <a href="{{ url_for('pos.mesa', mesa_id=p.mesa_id) }}" class="btn btn-sm btn-outline">POS</a>
+                    <a href="{{ url_for('pos.edit', pedido_id=p.id) }}" class="btn btn-sm btn-outline">Editar</a>
+                    {% if current_user.rol == 'admin' %}
+                    <form action="{{ url_for('pos.delete', pedido_id=p.id) }}" method="post" style="display:inline;"
+                          onsubmit="return confirm('¿Eliminar permanentemente el pedido #{{ p.id }}? Esta acción no se puede deshacer.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-danger" title="Eliminar">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% else %}
                     <a href="{{ url_for('pos.detail', pedido_id=p.id) }}" class="btn btn-sm btn-outline">Ver</a>
+                    {% if current_user.rol == 'admin' and p.estado in ('pagado', 'pendiente') %}
+                    <button class="btn btn-sm btn-danger" onclick="anularPedido({{ p.id }})" title="Anular">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                    {% endif %}
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

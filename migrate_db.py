@@ -74,6 +74,8 @@ if __name__ == '__main__':
             ('pedidos', 'observaciones', 'VARCHAR(300)', False, None, None, None),
             ('pedido_items', 'anulado_en', 'TIMESTAMP', False, None, None, None),
             ('pedido_items', 'motivo_anulacion', 'VARCHAR(200)', False, None, None, None),
+            ('pedido_items', 'nota', 'VARCHAR(200)', False, None, None, None),
+            ('pedido_items', 'producto_id', 'INTEGER', True, 'productos', 'id', None),  # nullable para montos manuales (se agrega como NULL si la columna no existe)
             ('productos', 'precio_usd', 'FLOAT', False, None, None, None),
             ('productos', 'precio_bs', 'FLOAT', False, None, None, None),
             ('productos', 'precio_cop', 'INTEGER', False, None, None, 0),
@@ -174,7 +176,28 @@ if __name__ == '__main__':
                 print(f'  ℹ️  Tabla {table} no existe (se creará con create_all).')
 
         # ──────────────────────────────────────────────
-        #  3. Sembrar mesas por defecto si la tabla está vacía
+        #  3. Hacer nullable columnas que cambiaron (Postgres)
+        # ──────────────────────────────────────────────
+        if 'pedido_items' in tables and engine_name == 'postgresql':
+            cols = {c['name']: c for c in insp.get_columns('pedido_items')}
+            if 'producto_id' in cols:
+                nullable = cols['producto_id'].get('nullable', True)
+                if not nullable:
+                    print('  → Haciendo pedido_items.producto_id NULLABLE (para montos manuales)...')
+                    try:
+                        db.session.execute(text(
+                            'ALTER TABLE pedido_items ALTER COLUMN producto_id DROP NOT NULL'
+                        ))
+                        db.session.commit()
+                        print('  ✅ producto_id ahora es NULLABLE.')
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'  ⚠️ Error: {e}')
+                else:
+                    print('  ✅ producto_id ya es NULLABLE.')
+
+        # ──────────────────────────────────────────────
+        #  4. Sembrar mesas por defecto si la tabla está vacía
         #     (independientemente de si mesa_id ya existe o no)
         # ──────────────────────────────────────────────
         print()
@@ -203,7 +226,7 @@ if __name__ == '__main__':
                 print(f'  ✅ {count} usuarios ya existen.')
 
         # ──────────────────────────────────────────────
-        #  4. Crear tablas completamente nuevas
+        #  5. Crear tablas completamente nuevas
         # ──────────────────────────────────────────────
         print()
         print('🏗️  Ejecutando db.create_all() para tablas nuevas...')
@@ -211,7 +234,7 @@ if __name__ == '__main__':
         print('  ✅ create_all() completado.')
 
         # ──────────────────────────────────────────────
-        #  5. Verificación final
+        #  6. Verificación final
         # ──────────────────────────────────────────────
         print()
         tables_post = insp.get_table_names()

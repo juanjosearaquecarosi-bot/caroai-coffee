@@ -85,7 +85,6 @@ def create_app():
     from .routes.gastos import gastos_bp
     from .routes.tasas import tasas_bp
     from .routes.facturas import facturas_bp
-
     app.register_blueprint(sales_bp, url_prefix='/sales')
     app.register_blueprint(pos_bp)
     app.register_blueprint(inventory_bp, url_prefix='/inventory')

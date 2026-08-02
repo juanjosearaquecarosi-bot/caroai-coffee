@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Editar Pedido #{{ pedido.id }} · Caroai Café{% endblock %}
+
+{% block content %}
+<style>
+.edit-layout { display: flex; gap: 1.5rem; margin: -2rem -1.5rem; padding: 2rem 1.5rem; background: var(--color-bg); min-height: calc(100vh - var(--nav-height) - 2rem); }
+.edit-products { flex: 1; min-width: 0; }
+.edit-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; }
+.edit-topbar h2 { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+.edit-cat-title { font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-secondary); margin: 1rem 0 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+.edit-cat-title::after { content: ''; flex: 1; height: 1px; background: var(--color-border-light); }
+.edit-prod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 0.5rem; }
+.edit-prod-btn { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; padding: 0.75rem; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; transition: all 0.15s ease; font-family: var(--font-body); }
+.edit-prod-btn:hover { border-color: var(--color-accent); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.edit-prod-btn .prod-name { font-size: 0.8125rem; font-weight: 600; text-align: center; }
+.edit-prod-btn .prod-price { font-family: var(--font-display); font-size: 0.875rem; font-weight: 600; color: var(--color-accent); }
+.edit-sidebar { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); max-height: calc(100vh - var(--nav-height) - 3rem); position: sticky; top: calc(var(--nav-height) + 0.5rem); }
+.edit-sidebar-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--color-border-light); }
+.edit-sidebar-header h3 { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; }
+.edit-items { flex: 1; overflow-y: auto; }
+.edit-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1.25rem; }
+.edit-item form { display: flex; align-items: center; gap: 0.375rem; }
+.edit-item .qty-input { width: 50px; padding: 0.25rem 0.375rem; border: 1px solid var(--color-border); border-radius: 6px; text-align: center; font-size: 0.875rem; font-family: var(--font-body); background: var(--color-bg); color: var(--color-text-primary); }
+.edit-item .qty-input:focus { border-color: var(--color-accent); outline: none; }
+.edit-item-name { flex: 1; font-size: 0.875rem; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.edit-item-subtotal { min-width: 75px; text-align: right; font-weight: 700; font-size: 0.875rem; }
+.edit-footer { border-top: 1px solid var(--color-border-light); padding: 1rem 1.25rem; }
+.edit-total { font-family: var(--font-display); font-size: 1.375rem; font-weight: 700; text-align: right; }
+.edit-manual-form { display: flex; gap: 0.375rem; align-items: center; flex-wrap: wrap; padding: 0.75rem 1.25rem; border-top: 1px solid var(--color-border-light); background: var(--color-accent-light); }
+.edit-manual-form input { padding: 0.375rem 0.5rem; border: 1px solid var(--color-border); border-radius: 6px; font-size: 0.8125rem; font-family: var(--font-body); background: var(--color-surface); color: var(--color-text-primary); }
+.edit-manual-form input:focus { border-color: var(--color-accent); outline: none; }
+.edit-manual-form .manual-desc { flex: 1; min-width: 120px; }
+.edit-manual-form .manual-monto { width: 90px; }
+.edit-manual-form .manual-qty { width: 60px; }
+.edit-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; color: var(--color-text-muted); text-align: center; }
+@media (max-width:900px) { .edit-layout{flex-direction:column;margin:-1.25rem -1rem;padding:1.25rem 1rem} .edit-sidebar{width:100%;max-height:none;position:static} .edit-prod-grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))} }
+</style>
+
+<div class="edit-layout">
+    <div class="edit-products">
+        <div class="edit-topbar">
+            <h2>✏️ Pedido #{{ pedido.id }} · {{ mesa.nombre }}</h2>
+            <a href="{{ url_for('pos.mesa', mesa_id=mesa.id) }}" class="btn btn-sm btn-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                Volver a POS
+            </a>
+        </div>
+
+        {% if catalogo['bebida'] %}
+        <div class="edit-cat-title">☕ Bebidas</div>
+        <div class="edit-prod-grid">
+            {% for p in catalogo['bebida'] %}
+            <form method="POST" action="{{ url_for('pos.edit', pedido_id=pedido.id) }}" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="add_product">
+                <input type="hidden" name="producto_id" value="{{ p.id }}">
+                <button type="submit" class="edit-prod-btn">
+                    <span class="prod-name">{{ p.nombre }}</span>
+                    <span class="prod-price">${{ "{:,}".format(p.precio_cop or p.precio_venta_cop) }}</span>
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if catalogo['comida'] %}
+        <div class="edit-cat-title">🍰 Comidas</div>
+        <div class="edit-prod-grid">
+            {% for p in catalogo['comida'] %}
+            <form method="POST" action="{{ url_for('pos.edit', pedido_id=pedido.id) }}" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="add_product">
+                <input type="hidden" name="producto_id" value="{{ p.id }}">
+                <button type="submit" class="edit-prod-btn">
+                    <span class="prod-name">{{ p.nombre }}</span>
+                    <span class="prod-price">${{ "{:,}".format(p.precio_cop or p.precio_venta_cop) }}</span>
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if catalogo['grano'] %}
+        <div class="edit-cat-title">🫘 Café en grano</div>
+        <div class="edit-prod-grid">
+            {% for p in catalogo['grano'] %}
+            <form method="POST" action="{{ url_for('pos.edit', pedido_id=pedido.id) }}" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="add_product">
+                <input type="hidden" name="producto_id" value="{{ p.id }}">
+                <button type="submit" class="edit-prod-btn">
+                    <span class="prod-name">{{ p.nombre }}</span>
+                    <span class="prod-price">${{ "{:,}".format(p.precio_cop or p.precio_venta_cop) }}</span>
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if catalogo['cerveza'] %}
+        <div class="edit-cat-title">🍺 Cervezas</div>
+        <div class="edit-prod-grid">
+            {% for p in catalogo['cerveza'] %}
+            <form method="POST" action="{{ url_for('pos.edit', pedido_id=pedido.id) }}" style="display:contents;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="add_product">
+                <input type="hidden" name="producto_id" value="{{ p.id }}">
+                <button type="submit" class="edit-prod-btn">
+                    <span class="prod-name">{{ p.nombre }}</span>
+                    <span class="prod-price">${{ "{:,}".format(p.precio_cop or p.precio_venta_cop) }}</span>
+                </button>
+            </form>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="edit-sidebar">
+        <div class="edit-sidebar-header">
+            <h3>📋 Items del pedido</h3>
+        </div>
+        <div class="edit-items">
+            {% if pedido.items %}
+                {% for item in pedido.items %}
+                <div class="edit-item">
+                    <span class="edit-item-name">{{ item.nota or (item.producto.nombre if item.producto else 'Cargo manual') }}</span>
+                    <form method="POST" action="{{ url_for('pos.edit', pedido_id=pedido.id) }}" style="display:flex;align-items:center;gap:0.375rem;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="update_qty">
+                        <input type="hidden" name="item_id" value="{{ item.id }}">
+                        <input type="number" name="cantidad" value="{{ item.cantidad }}" min="0" class="qty-input" onchange="this.form.submit()">
+                    </form>
+                    <span class="edit-item-subtotal">${{ "{:,}".format(item.subtotal_cop) }}</span>
+                    <form method="POST" action="{{ url_for('pos.edit', pedido_id=pedido.id) }}" style="display:inline;"
+                          onsubmit="return confirm('¿Eliminar {{ item.nota or (item.producto.nombre if item.producto else '')[:20] }}?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="remove_item">
+                        <input type="hidden" name="item_id" value="{{ item.id }}">
+                        <button type="submit" class="btn btn-sm btn-ghost" title="Quitar" style="padding:0.25rem;color:var(--color-text-muted);">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="edit-empty">
+                <p>El pedido está vacío.</p>
+                <span class="text-xs">Toca un producto para agregarlo</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Manual charge form -->
+        <form method="POST" action="{{ url_for('pos.edit', pedido_id=pedido.id) }}" class="edit-manual-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="add_manual">
+            <input type="text" name="descripcion" class="manual-desc" placeholder="Cargo manual…" required maxlength="200">
+            <input type="number" name="monto" class="manual-monto" placeholder="Monto COP" min="1" required>
+            <input type="number" name="cantidad" class="manual-qty" placeholder="Cant" value="1" min="1">
+            <button type="submit" class="btn btn-sm btn-primary">+</button>
+        </form>
+
+        <div class="edit-footer">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:600;color:var(--color-text-secondary);">Total COP</span>
+                <span class="edit-total">${{ "{:,}".format(total_cop) }}</span>
+            </div>
+            <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+                <a href="{{ url_for('pos.mesa', mesa_id=mesa.id) }}" class="btn btn-secondary" style="flex:1;">Volver</a>
+                <a href="{{ url_for('pos.mesa', mesa_id=mesa.id) }}" class="btn btn-primary" style="flex:1;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Ir a cobrar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

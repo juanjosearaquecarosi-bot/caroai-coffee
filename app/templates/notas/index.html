@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Notas · Caroai Café{% endblock %}
+
+{% block content %}
+<style>
+.nota-card { margin-bottom: 1.25rem; }
+.nota-card .card-header h3 { font-family: var(--font-body); font-weight: 600; }
+.nota-deuda { border-left: 3px solid var(--color-warning); }
+.nota-cobrada { border-left: 3px solid var(--color-success); opacity: 0.75; }
+.nota-general { border-left: 3px solid var(--color-info); }
+.nota-monto { font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1>📝 Notas y Cuentas por Cobrar</h1>
+        <p>Registro de notas generales y deudas pendientes por cobrar</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{% if show_form %}{{ url_for('notas.index') }}{% else %}{{ url_for('notas.nueva') }}{% endif %}"
+           class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            {% if show_form %}Ver notas{% else %}Nueva nota{% endif %}
+        </a>
+    </div>
+</div>
+
+<!-- ─── Formulario de nueva nota ─── -->
+{% if show_form %}
+<div class="row form-card">
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="form-group">
+                    <label class="form-label">Tipo</label>
+                    <div class="pill-group" style="display:flex;gap:0.5rem;">
+                        <button type="button" class="pill pill-active" data-type="general" onclick="selectTipo(this)">📝 Nota general</button>
+                        <button type="button" class="pill" data-type="deuda" onclick="selectTipo(this)">💰 Cuenta por cobrar</button>
+                    </div>
+                    <input type="hidden" name="tipo" id="tipoInput" value="general">
+                </div>
+
+                <div class="form-group">
+                    <label for="titulo" class="form-label">Título *</label>
+                    <input type="text" class="form-input" id="titulo" name="titulo" required
+                           placeholder="Ej: Deuda de Juan" maxlength="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="contenido" class="form-label">Contenido <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                    <textarea class="form-textarea" id="contenido" name="contenido" placeholder="Detalles…"></textarea>
+                </div>
+
+                <div id="deudaFields" style="display:none;">
+                    <div class="row row-cols-2">
+                        <div class="form-group">
+                            <label for="cliente" class="form-label">Cliente <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                            <input type="text" class="form-input" id="cliente" name="cliente" placeholder="Nombre del cliente">
+                        </div>
+                        <div class="form-group">
+                            <label for="monto_cop" class="form-label">Monto COP *</label>
+                            <input type="number" class="form-input" id="monto_cop" name="monto_cop" min="1" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="row row-cols-2">
+                        <div class="form-group">
+                            <label for="mesa_id" class="form-label">Mesa asociada <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                            <select class="form-select" id="mesa_id" name="mesa_id">
+                                <option value="">— Sin mesa —</option>
+                                {% for m in mesas %}
+                                <option value="{{ m.id }}">{{ m.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pedido_id" class="form-label">Pedido asociado <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
+                            <input type="number" class="form-input" id="pedido_id" name="pedido_id" min="1" placeholder="# pedido">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Guardar
+                    </button>
+                    <a href="{{ url_for('notas.index') }}" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function selectTipo(el) {
+    document.querySelectorAll('.pill-group .pill').forEach(function(p){p.classList.remove('pill-active')});
+    el.classList.add('pill-active');
+    var tipo = el.getAttribute('data-type');
+    document.getElementById('tipoInput').value = tipo;
+    document.getElementById('deudaFields').style.display = tipo === 'deuda' ? 'block' : 'none';
+    if (tipo === 'deuda') document.getElementById('monto_cop').setAttribute('required', '');
+    else document.getElementById('monto_cop').removeAttribute('required');
+}
+</script>
+
+{% else %}
+
+<!-- ─── DEUDAS PENDIENTES ─── -->
+<div class="card nota-card nota-deuda">
+    <div class="card-header">
+        <h3>💰 Deudas pendientes</h3>
+        <span class="badge badge-stock-bajo">{{ deudas_pendientes|length }}</span>
+    </div>
+    {% if deudas_pendientes %}
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Título</th>
+                    <th>Cliente</th>
+                    <th>Monto</th>
+                    <th>Mesa</th>
+                    <th>Pedido</th>
+                    <th>Fecha</th>
+                    <th class="cell-actions"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for n in deudas_pendientes %}
+                <tr>
+                    <td><strong>{{ n.titulo }}</strong>{% if n.contenido %}<br><span class="text-muted text-small">{{ n.contenido }}</span>{% endif %}</td>
+                    <td>{{ n.cliente or '—' }}</td>
+                    <td class="nota-monto text-warning">${{ "{:,}".format(n.monto_cop) }} COP</td>
+                    <td>{{ n.mesa.nombre if n.mesa else '—' }}</td>
+                    <td>{% if n.pedido %}#{{ n.pedido_id }}{% else %}—{% endif %}</td>
+                    <td class="text-small">{{ n.creado_en.strftime('%d/%m/%Y') }}</td>
+                    <td class="cell-actions">
+                        <form action="{{ url_for('notas.cobrar', id=n.id) }}" method="post" style="display:inline;"
+                              onsubmit="return confirm('¿Marcar «{{ n.titulo }}» como cobrada?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-success">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                Cobrar
+                            </button>
+                        </form>
+                        <form action="{{ url_for('notas.eliminar', id=n.id) }}" method="post" style="display:inline;"
+                              onsubmit="return confirm('¿Eliminar nota «{{ n.titulo }}»?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-danger" title="Eliminar">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2" style="text-align:right;">Total deudas pendientes</td>
+                    <td><strong class="mono-number text-warning">${{ "{:,}".format(deudas_pendientes|sum(attribute='monto_cop')) }} COP</strong></td>
+                    <td colspan="4"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body empty-state">
+        <span class="empty-icon">💰</span>
+        <h3>Sin deudas pendientes</h3>
+        <p>No hay cuentas por cobrar registradas.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ─── NOTAS GENERALES ─── -->
+<div class="card nota-card nota-general">
+    <div class="card-header">
+        <h3>📝 Notas generales</h3>
+        <span class="badge badge-pagado">{{ notas_generales|length }}</span>
+    </div>
+    {% if notas_generales %}
+    <div class="card-body" style="padding:0;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:0.75rem; padding:1.25rem;">
+            {% for n in notas_generales %}
+            <div style="background:var(--color-bg); border-radius:var(--radius-sm); padding:1rem; border:1px solid var(--color-border-light);">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.5rem;">
+                    <strong style="font-size:0.875rem;">{{ n.titulo }}</strong>
+                    <form action="{{ url_for('notas.eliminar', id=n.id) }}" method="post" style="flex-shrink:0;"
+                          onsubmit="return confirm('¿Eliminar nota?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-ghost" title="Eliminar" style="padding:0.25rem;color:var(--color-text-muted);">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </form>
+                </div>
+                {% if n.contenido %}<p class="text-small mt-1" style="color:var(--color-text-secondary);">{{ n.contenido }}</p>{% endif %}
+                <span class="text-xs text-muted" style="margin-top:0.5rem;display:block;">{{ n.creado_en.strftime('%d/%m/%Y %H:%M') }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="card-body empty-state">
+        <span class="empty-icon">📝</span>
+        <h3>Sin notas</h3>
+        <p>Las notas generales aparecerán aquí.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ─── DEUDAS COBRADAS ─── -->
+{% if deudas_cobradas %}
+<div class="card nota-card nota-cobrada">
+    <div class="card-header">
+        <h3>✅ Deudas cobradas</h3>
+        <span class="badge badge-pagado">{{ deudas_cobradas|length }}</span>
+    </div>
+    <div class="table-wrapper" style="border:none;border-radius:0;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Título</th>
+                    <th>Cliente</th>
+                    <th>Monto</th>
+                    <th>Fecha</th>
+                    <th class="cell-actions"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for n in deudas_cobradas %}
+                <tr>
+                    <td><strong>{{ n.titulo }}</strong></td>
+                    <td>{{ n.cliente or '—' }}</td>
+                    <td class="nota-monto" style="color:var(--color-success);">${{ "{:,}".format(n.monto_cop) }} COP</td>
+                    <td class="text-small">{{ n.creado_en.strftime('%d/%m/%Y') }}</td>
+                    <td class="cell-actions">
+                        <form action="{{ url_for('notas.eliminar', id=n.id) }}" method="post" style="display:inline;"
+                              onsubmit="return confirm('¿Eliminar nota?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

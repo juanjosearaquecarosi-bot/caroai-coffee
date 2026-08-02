@@ -124,10 +124,13 @@ class PedidoItem(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     pedido_id = db.Column(db.Integer, db.ForeignKey('pedidos.id'), nullable=False)
-    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=False)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=True)
     cantidad = db.Column(db.Integer, nullable=False, default=1)
     precio_unitario_cop = db.Column(db.Integer, nullable=False)
     subtotal_cop = db.Column(db.Integer, nullable=False)
+
+    # Nota opcional del item (para montos manuales / descripciones personalizadas)
+    nota = db.Column(db.String(200), nullable=True)
 
     # Anulación lógica (para pedidos ya pagados/cerrados)
     anulado_en = db.Column(db.DateTime, nullable=True)
@@ -156,7 +159,8 @@ class Insumo(db.Model):
     unidad_medida = db.Column(db.String(20), nullable=False)  # kg / g / ml / l / unidad
     costo_unitario_cop = db.Column(db.Integer, nullable=False)
     stock_actual = db.Column(db.Integer, nullable=False, default=0)
-    stock_minimo = db.Column(db.Integer, nullable=False, default=0)
+    stock_minimo = db.Column(db.Integer, nullable=True, default=None)
+    stock_maximo = db.Column(db.Integer, nullable=True, default=None)
 
     movimientos = db.relationship('MovimientoInventario', back_populates='insumo',
                                   cascade='all, delete-orphan')
@@ -237,15 +241,53 @@ class Factura(db.Model):
 #  entre monedas. NO se usa automáticamente en
 #  reportes; se muestra de forma informativa.
 # ──────────────────────────────────────────────
+# ──────────────────────────────────────────────
+#  NOTA (cuentas por cobrar y notas generales)
+#  Sistema simple de notas.
+#  tipo: 'general' (nota normal) / 'deuda' (cuenta por cobrar)
+#  estado: 'pendiente' / 'cobrada'
+# ──────────────────────────────────────────────
+class Nota(db.Model):
+    __tablename__ = 'notas'
+
+    id = db.Column(db.Integer, primary_key=True)
+    titulo = db.Column(db.String(100), nullable=False)
+    contenido = db.Column(db.Text, nullable=True)
+    tipo = db.Column(db.String(20), nullable=False, default='general')  # general / deuda
+    cliente = db.Column(db.String(100), nullable=True)
+    mesa_id = db.Column(db.Integer, db.ForeignKey('mesas.id'), nullable=True)
+    monto_cop = db.Column(db.Integer, nullable=True)
+    pedido_id = db.Column(db.Integer, db.ForeignKey('pedidos.id'), nullable=True)
+    estado = db.Column(db.String(20), nullable=False, default='pendiente')  # pendiente / cobrada
+    creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    mesa = db.relationship('Mesa')
+    pedido = db.relationship('Pedido')
+
+    def __repr__(self):
+        return f'<Nota {self.titulo[:40]} — {self.tipo} — {self.estado}>'
+
+
 class TasaCambio(db.Model):
     __tablename__ = 'tasas_cambio'
 
     id = db.Column(db.Integer, primary_key=True)
-    moneda_origen = db.Column(db.String(10), nullable=False)   # VES / COP / USD
+    moneda_origen = db.Column(db.String(20), nullable=False)   # VES / VES_COMPRA / VES_VENTA / USD / USD_TACHIRA / COP
     moneda_destino = db.Column(db.String(10), nullable=False)  # VES / COP / USD
     tasa = db.Column(db.Float, nullable=False)                  # 1 moneda_origen = tasa moneda_destino
+    tipo = db.Column(db.String(30), nullable=True, default=None)  # None=directa / ves_compra / ves_venta / tachira_usd
     vigente_desde = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
+    @property
+    def tipo_etiqueta(self):
+        etiquetas = {
+            'ves_compra': '🇻🇪 VES Compra',
+            'ves_venta': '🇻🇪 VES Venta',
+            'tachira_usd': '🇺🇸 Tasa Táchira (USD)',
+        }
+        return etiquetas.get(self.tipo, 'Directa')
+
     def __repr__(self):
-        return f'<Tasa 1 {self.moneda_origen} = {self.tasa} {self.moneda_destino} (desde {self.vigente_desde.strftime("%d/%m/%Y")})>'
+        tipo_str = f' [{self.tipo_etiqueta}]' if self.tipo else ''
+        return f'<Tasa 1 {self.moneda_origen} = {self.tasa} {self.moneda_destino}{tipo_str}>'

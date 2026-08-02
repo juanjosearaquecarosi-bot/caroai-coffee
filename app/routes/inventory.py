@@ -22,14 +22,16 @@ def create():
         unidad_medida = request.form['unidad_medida']
         costo_unitario_cop = int(request.form['costo_unitario_cop'])
         stock_actual = int(request.form['stock_actual'])
-        stock_minimo = int(request.form['stock_minimo'])
+        stock_minimo = request.form.get('stock_minimo', type=int)
+        stock_maximo = request.form.get('stock_maximo', type=int)
 
         insumo = Insumo(
             nombre=nombre,
             unidad_medida=unidad_medida,
             costo_unitario_cop=costo_unitario_cop,
             stock_actual=stock_actual,
-            stock_minimo=stock_minimo
+            stock_minimo=stock_minimo if stock_minimo is not None and stock_minimo >= 0 else None,
+            stock_maximo=stock_maximo if stock_maximo is not None and stock_maximo >= 0 else None,
         )
         db.session.add(insumo)
         db.session.commit()
@@ -48,7 +50,12 @@ def edit(id):
         insumo.unidad_medida = request.form['unidad_medida']
         insumo.costo_unitario_cop = int(request.form['costo_unitario_cop'])
         insumo.stock_actual = int(request.form['stock_actual'])
-        insumo.stock_minimo = int(request.form['stock_minimo'])
+        insumo.stock_minimo = request.form.get('stock_minimo', type=int)
+        if insumo.stock_minimo is not None and insumo.stock_minimo < 0:
+            insumo.stock_minimo = None
+        insumo.stock_maximo = request.form.get('stock_maximo', type=int)
+        if insumo.stock_maximo is not None and insumo.stock_maximo < 0:
+            insumo.stock_maximo = None
         db.session.commit()
         flash(f'Insumo "{insumo.nombre}" actualizado exitosamente.', 'success')
         return redirect(url_for('inventory.index'))
