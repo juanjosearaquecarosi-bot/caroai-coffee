@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Comparar meses · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Comparar meses</h1>
+        <p>Mes A vs Mes B &middot; con datos guardados en el momento del cobro</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{{ url_for('reports.monthly') }}" class="btn btn-outline">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            Mensual
+        </a>
+    </div>
+</div>
+
+<!-- Selectores de meses A y B -->
+<div class="filter-bar">
+    <form method="GET" action="{{ url_for('reports.compare') }}">
+        <div class="filter-group">
+            <label for="mes_a">Mes A</label>
+            <select class="form-select" id="mes_a" name="mes_a">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if mes_a == m %}selected{% endif %}>{{ '%02d' % m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="anio_a">Año A</label>
+            <select class="form-select" id="anio_a" name="anio_a">
+                {% for a in anios %}
+                <option value="{{ a }}" {% if anio_a == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="mes_b">Mes B</label>
+            <select class="form-select" id="mes_b" name="mes_b">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if mes_b == m %}selected{% endif %}>{{ '%02d' % m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="anio_b">Año B</label>
+            <select class="form-select" id="anio_b" name="anio_b">
+                {% for a in anios %}
+                <option value="{{ a }}" {% if anio_b == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-sm btn-primary">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                Comparar
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Tabla comparativa -->
+<div class="card">
+    <div class="card-header">
+        <h3>Resumen comparativo</h3>
+    </div>
+    <div class="table-wrapper" style="border: none; border-radius: 0;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Métrica</th>
+                    <th class="text-right">{{ resumen_a.mes_nombre }} {{ resumen_a.anio }}</th>
+                    <th class="text-right">{{ resumen_b.mes_nombre }} {{ resumen_b.anio }}</th>
+                    <th class="text-right">Δ (B − A)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in filas %}
+                <tr>
+                    <td><strong>{{ f.etiqueta }}</strong></td>
+
+                    <td class="text-right">
+                        {% if f.tipo == 'monto' %}
+                            <span class="mono-number">{{ f.simbolo }}{% if f.decimales %}{{ "{:,.2f}".format(f.a) }}{% else %}{{ "{:,}".format(f.a) }}{% endif %}</span>
+                        {% elif f.tipo == 'tasa' %}
+                            {% if f.a %}<span class="mono-number">{{ "%.2f"|format(f.a) }}</span>{% else %}—{% endif %}
+                        {% else %}
+                            <span class="mono-number">{{ f.a }}</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="text-right">
+                        {% if f.tipo == 'monto' %}
+                            <span class="mono-number">{{ f.simbolo }}{% if f.decimales %}{{ "{:,.2f}".format(f.b) }}{% else %}{{ "{:,}".format(f.b) }}{% endif %}</span>
+                        {% elif f.tipo == 'tasa' %}
+                            {% if f.b %}<span class="mono-number">{{ "%.2f"|format(f.b) }}</span>{% else %}—{% endif %}
+                        {% else %}
+                            <span class="mono-number">{{ f.b }}</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="text-right">
+                        {% if f.tipo == 'tasa' %}
+                            —
+                        {% elif f.a is not none and f.b is not none %}
+                            {% set d = f.b - f.a %}
+                            <span class="mono-number {% if d > 0 %}text-success{% elif d < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                {% if f.tipo == 'monto' %}{% if d > 0 %}+{% endif %}{{ f.simbolo }}{% if f.decimales %}{{ "{:,.2f}".format(d) }}{% else %}{{ "{:,}".format(d) }}{% endif %}
+                                {% else %}{% if d > 0 %}+{% endif %}{{ d }}{% endif %}
+                            </span>
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer">
+        <div class="callout callout-info">
+            <strong>Nota sobre los datos</strong>
+            <p>La comparación usa los montos y tasas <strong>guardados en cada cobro</strong> (total, moneda, monto pagado y tasa aplicada). No se recalculan ventas pasadas con tasas de cambio nuevas. Solo se incluyen pedidos con estado <strong>pagado</strong>; los anulados y pendientes no entran en los totales. El <strong>gasto total</strong> suma los montos de todas las monedas tal como se registraron (sin convertir).</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

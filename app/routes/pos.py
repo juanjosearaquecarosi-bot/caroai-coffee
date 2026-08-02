@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from ..models import db, Mesa, Pedido, PedidoItem, Producto
 from ..utils.decorators import role_required
 from ..utils.currency import obtener_tasas_cop, convertir_cop_a
-from datetime import datetime, date
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

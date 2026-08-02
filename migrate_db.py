@@ -13,7 +13,6 @@ Requiere variable de entorno DATABASE_URL (Render la inyecta automáticamente).
 """
 
 import os
-import sys
 
 os.environ.setdefault('FLASK_APP', 'app')
 

@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required
 from ..models import db, Factura
 from ..utils.decorators import role_required
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 facturas_bp = Blueprint('facturas', __name__)
 

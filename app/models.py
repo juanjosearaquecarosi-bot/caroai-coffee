@@ -236,12 +236,6 @@ class Factura(db.Model):
 
 
 # ──────────────────────────────────────────────
-#  TASA DE CAMBIO (Fase 4)
-#  Registro de tasas de referencia para conversión
-#  entre monedas. NO se usa automáticamente en
-#  reportes; se muestra de forma informativa.
-# ──────────────────────────────────────────────
-# ──────────────────────────────────────────────
 #  NOTA (cuentas por cobrar y notas generales)
 #  Sistema simple de notas.
 #  tipo: 'general' (nota normal) / 'deuda' (cuenta por cobrar)
@@ -268,6 +262,11 @@ class Nota(db.Model):
         return f'<Nota {self.titulo[:40]} — {self.tipo} — {self.estado}>'
 
 
+# ──────────────────────────────────────────────
+#  TASA DE CAMBIO
+#  Registro de tasas de referencia para conversión
+#  entre monedas. Se consulta en POS, caja y reportes.
+# ──────────────────────────────────────────────
 class TasaCambio(db.Model):
     __tablename__ = 'tasas_cambio'
 

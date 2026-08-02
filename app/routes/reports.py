@@ -230,3 +230,148 @@ def monthly():
         balance_cop=balance_cop,
         balance_unificado=balance_unificado,
     )
+
+
+# ──────────────────────────────────────────────
+#  COMPARACIÓN ENTRE MESES (Fase 4)
+#  Usa SOLO datos guardados en el momento del cobro:
+#  Pedido.total, moneda_pago, tasa_aplicada y total_pagado_moneda.
+#  No recalcula ventas pasadas con tasas de cambio nuevas.
+#  Solo entran pedidos con estado 'pagado' (anulados/pendientes quedan fuera).
+# ──────────────────────────────────────────────
+
+NOMBRES_MES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+               'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+
+def _monto_en_moneda(pedido):
+    """Monto cobrado en la moneda del pedido, tal como se guardó en el cobro.
+    Prioriza total_pagado_moneda; si falta (datos viejos), deriva de total/tasa_aplicada."""
+    if pedido.total_pagado_moneda:
+        return pedido.total_pagado_moneda
+    if pedido.tasa_aplicada and pedido.tasa_aplicada > 0:
+        return round(pedido.total / pedido.tasa_aplicada, 2)
+    return 0.0
+
+
+def _resumen_mes(mes, anio):
+    """Agrega las métricas comparables de un mes (pedidos pagados + gastos)."""
+    month_start = date(anio, mes, 1)
+    if mes == 12:
+        month_end = date(anio + 1, 1, 1)
+    else:
+        month_end = date(anio, mes + 1, 1)
+
+    month_start_dt = datetime(month_start.year, month_start.month, month_start.day, 0, 0, 0)
+    month_end_dt = datetime(month_end.year, month_end.month, month_end.day, 0, 0, 0)
+
+    pedidos = Pedido.query.filter(
+        Pedido.pagado_en >= month_start_dt,
+        Pedido.pagado_en < month_end_dt,
+        Pedido.estado == 'pagado',
+    ).all()
+
+    total_vendido_cop = sum(p.total for p in pedidos)
+    monto_cop = sum(p.total for p in pedidos if p.moneda_pago == 'COP')
+    monto_usd = 0.0
+    monto_ves = 0.0
+    tasas_usd = []
+    tasas_ves = []
+
+    for p in pedidos:
+        if p.moneda_pago == 'USD':
+            monto_usd += _monto_en_moneda(p)
+            if p.tasa_aplicada:
+                tasas_usd.append(p.tasa_aplicada)
+        elif p.moneda_pago == 'VES':
+            monto_ves += _monto_en_moneda(p)
+            if p.tasa_aplicada:
+                tasas_ves.append(p.tasa_aplicada)
+
+    gastos = Gasto.query.filter(
+        Gasto.fecha >= month_start,
+        Gasto.fecha < month_end,
+    ).all()
+    gastos_por_moneda = {}
+    for g in gastos:
+        gastos_por_moneda[g.moneda] = gastos_por_moneda.get(g.moneda, 0) + g.monto
+
+    return {
+        'mes': mes,
+        'anio': anio,
+        'mes_nombre': NOMBRES_MES[mes - 1],
+        'total_vendido_cop': total_vendido_cop,
+        'monto_cop': monto_cop,
+        'monto_usd': round(monto_usd, 2),
+        'monto_ves': round(monto_ves, 2),
+        'num_pedidos': len(pedidos),
+        'tasa_usd': (sum(tasas_usd) / len(tasas_usd)) if tasas_usd else None,
+        'tasa_ves': (sum(tasas_ves) / len(tasas_ves)) if tasas_ves else None,
+        'gasto_total': sum(gastos_por_moneda.values()),
+        'gastos_por_moneda': gastos_por_moneda,
+    }
+
+
+def _meses_con_datos():
+    """Meses (anio, mes) con pedidos pagados o gastos, ordenados desc."""
+    pares = set()
+    for (fecha_pagado,) in Pedido.query.filter_by(estado='pagado').with_entities(Pedido.pagado_en).all():
+        if fecha_pagado:
+            pares.add((fecha_pagado.year, fecha_pagado.month))
+    for (fecha_gasto,) in Gasto.query.with_entities(Gasto.fecha).all():
+        if fecha_gasto:
+            pares.add((fecha_gasto.year, fecha_gasto.month))
+    return sorted(pares, reverse=True)
+
+
+def _construir_filas(ra, rb):
+    """Filas de la tabla comparativa: etiqueta, valor A, valor B, tipo."""
+    return [
+        {'etiqueta': 'Total vendido (COP)', 'a': ra['total_vendido_cop'], 'b': rb['total_vendido_cop'], 'tipo': 'monto', 'simbolo': '$', 'decimales': 0},
+        {'etiqueta': 'Monto pagado en COP', 'a': ra['monto_cop'], 'b': rb['monto_cop'], 'tipo': 'monto', 'simbolo': '$', 'decimales': 0},
+        {'etiqueta': 'Monto pagado en USD', 'a': ra['monto_usd'], 'b': rb['monto_usd'], 'tipo': 'monto', 'simbolo': 'US$', 'decimales': 2},
+        {'etiqueta': 'Monto pagado en VES', 'a': ra['monto_ves'], 'b': rb['monto_ves'], 'tipo': 'monto', 'simbolo': 'Bs', 'decimales': 2},
+        {'etiqueta': 'Pedidos pagados', 'a': ra['num_pedidos'], 'b': rb['num_pedidos'], 'tipo': 'contador'},
+        {'etiqueta': 'Tasa USD usada (prom.)', 'a': ra['tasa_usd'], 'b': rb['tasa_usd'], 'tipo': 'tasa'},
+        {'etiqueta': 'Tasa VES usada (prom.)', 'a': ra['tasa_ves'], 'b': rb['tasa_ves'], 'tipo': 'tasa'},
+        {'etiqueta': 'Gasto total', 'a': ra['gasto_total'], 'b': rb['gasto_total'], 'tipo': 'monto', 'simbolo': '$', 'decimales': 0},
+    ]
+
+
+@reports_bp.route('/compare')
+@login_required
+@role_required('admin')
+def compare():
+    """Compara dos meses usando datos guardados en el cobro. Admin only."""
+    today = date.today()
+    mes_a = request.args.get('mes_a', type=int, default=today.month)
+    anio_a = request.args.get('anio_a', type=int, default=today.year)
+    mes_b = request.args.get('mes_b', type=int,
+                             default=(12 if today.month == 1 else today.month - 1))
+    anio_b = request.args.get('anio_b', type=int,
+                              default=(today.year - 1 if today.month == 1 else today.year))
+
+    if mes_a < 1 or mes_a > 12:
+        mes_a = today.month
+    if mes_b < 1 or mes_b > 12:
+        mes_b = today.month
+    if anio_a < 2000 or anio_a > 2100:
+        anio_a = today.year
+    if anio_b < 2000 or anio_b > 2100:
+        anio_b = today.year
+
+    resumen_a = _resumen_mes(mes_a, anio_a)
+    resumen_b = _resumen_mes(mes_b, anio_b)
+
+    anios = sorted({a for a, _ in _meses_con_datos()} | {anio_a, anio_b, today.year},
+                   reverse=True)
+
+    return render_template(
+        'reports/compare.html',
+        resumen_a=resumen_a,
+        resumen_b=resumen_b,
+        filas=_construir_filas(resumen_a, resumen_b),
+        mes_a=mes_a, anio_a=anio_a,
+        mes_b=mes_b, anio_b=anio_b,
+        anios=anios,
+    )

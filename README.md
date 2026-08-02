@@ -1,61 +1,62 @@
-# Caroai Café Control App
+# Caroai Café Control
 
-A simple internal application for managing sales, inventory, and tables for a café.
+Aplicación interna de gestión para el café: control de mesas y caja, inventario, gastos, tasas de cambio, facturas, notas y reportes.
 
-## Features
+## Funcionalidad
 
-- Table management (open, close, reset)
-- Sales recording with multi-currency support (COP, Bolívares, USD, Binance, tarjeta)
-- Automatic inventory deduction based on recipes
-- Purchase recording for inventory
-- Low stock alerts
-- Reports (daily, weekly, monthly) - placeholder
+- **POS por mesas**: mapa de mesas, abrir mesa, agregar/quitar productos, cargos manuales, cobrar en COP/USD/VES y marcar pendiente.
+- **Caja rápida**: venta directa sin mesa con carrito en sesión.
+- **Inventario**: insumos, stock mínimo/máximo y movimientos (entrada / salida / merma / ajuste).
+- **Gastos**: registro y filtros por mes/año/categoría, con edición y borrado.
+- **Tasas de cambio**: tasas de referencia para conversión de monedas (directas y Táchira/compra/venta).
+- **Facturas**: control de cuentas por pagar con vencimientos.
+- **Notas**: notas generales y cuentas por cobrar (deudas).
+- **Reportes**: diario, mensual y comparación entre dos meses (con datos guardados del cobro).
+- **Autenticación**: login con roles `admin` / `empleado`. Admin gestiona módulos administrativos; el empleado opera POS, caja, inventario y reportes diarios.
 
 ## Setup
 
-1. Install Python 3.11+.
-2. Install dependencies:
+1. Instalar dependencias:
    ```bash
    pip install -r requirements.txt
    ```
-3. Set up the database and seed initial data:
+2. Sembrar datos iniciales:
    ```bash
    python seed_data.py
    ```
-4. Run the application:
+3. Ejecutar:
    ```bash
    python run.py
    ```
-5. Open your browser to `http://localhost:5000`.
+4. Abrir `http://localhost:5000`. Usuarios de seed: `admin@caroai.com` / `empleado@caroai.com` (ver seed_data.py para contraseñas).
 
-## Project Structure
+## Tests
+
+Smoke test de estabilidad de rutas y permisos (SQLite temporal):
+
+```bash
+python test_routes.py
+```
+
+## Estructura
 
 ```
 /app
-   /models.py        # SQLAlchemy models
-   /database.py      # Database initialization
-   /schemas.py       # Validation schemas (placeholder)
-   /routes/
-       /tables.py    # Table management
-       /sales.py     # Sales and pedidos
-       /inventory.py # Inventory management
-   /utils/
-       /currency.py  # Currency conversion functions
-       /excel_import.py # Excel parsing (to be completed)
-   /templates/       # HTML templates (organized by route)
-   /static/          # CSS, JS, images (Bootstrap via CDN)
-seed_data.py        # Script to seed initial data
-run.py              # Flask entry point
-requirements.txt    # Python dependencies
+   __init__.py    # app factory + blueprints
+   models.py      # modelos SQLAlchemy
+   database.py    # inicialización de la BD
+   routes/        # auth, pos, sales, inventory, gastos, tasas, facturas, notas, reports
+   utils/         # decorators (roles), currency (conversión), excel_import
+   templates/     # plantillas por módulo
+seed_data.py      # datos iniciales
+migrate_db.py     # migración de esquema para Postgres (Render)
+test_routes.py    # smoke tests
+run.py            # entry point de desarrollo
+wsgi.py           # entry point para gunicorn
 ```
 
-## Notes
+## Notas
 
-- The application uses SQLite by default (file `caroai.db` in the root).
-- Fiscal invoicing (SENIAT/QUORiON) is out of scope.
-- Designed for single-operator use; no authentication system.
-- Exchange rates must be manually entered via the database (or modify the seed script).
-
-## License
-
-MIT
+- SQLite por defecto (`instance/caroai.db`); en Render se usa Postgres vía `DATABASE_URL` y se ejecuta `migrate_db.py` en el release.
+- El control fiscal (SENIAT/QUORiON) está fuera de alcance.
+- Los reportes de comparación usan los montos y tasas guardados en el momento del cobro; no recalculan ventas pasadas con tasas nuevas.

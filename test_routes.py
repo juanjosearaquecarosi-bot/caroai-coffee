@@ -419,6 +419,67 @@ def run_tests():
         test("POST anular (empleado) → redirect", resp.status_code in (302, 303))
 
     # ══════════════════════════════════════════════
+    #  11. Comparación de meses (/reports/compare)
+    # ══════════════════════════════════════════════
+    print("\n── Comparación de meses ──")
+
+    # En este punto hay 3 pedidos del mes actual: uno anulado (excluido) y 2 pagados
+    # (6500 caja + 4500 POS empleado = 11000 COP).
+    hoy_cmp = date.today()
+    mes_actual, anio_actual = hoy_cmp.month, hoy_cmp.year
+    if mes_actual == 1:
+        mes_anterior, anio_anterior = 12, anio_actual - 1
+    else:
+        mes_anterior, anio_anterior = mes_actual - 1, anio_actual
+
+    from app.routes.reports import _resumen_mes
+    with app.app_context():
+        ra = _resumen_mes(mes_actual, anio_actual)
+        rb = _resumen_mes(mes_anterior, anio_anterior)
+    test("Resumen mes actual: 2 pedidos pagados (anulado excluido)",
+         ra['num_pedidos'] == 2 and ra['total_vendido_cop'] == 11000,
+         f"pedidos={ra['num_pedidos']}, total={ra['total_vendido_cop']}")
+    test("Resumen mes anterior: sin datos",
+         rb['num_pedidos'] == 0 and rb['total_vendido_cop'] == 0)
+
+    login('admin@test.com')
+    resp = client.get('/reports/compare', follow_redirects=True)
+    ok, msg = assert_ok(resp, '/reports/compare')
+    test("GET /reports/compare (admin) 200", ok, msg)
+    test("  → muestra Mes A / Mes B",
+         'Mes A' in resp.data.decode() and 'Mes B' in resp.data.decode())
+
+    resp = client.get(
+        f'/reports/compare?mes_a={mes_actual}&anio_a={anio_actual}'
+        f'&mes_b={mes_anterior}&anio_b={anio_anterior}',
+        follow_redirects=True)
+    ok, msg = assert_ok(resp, '/reports/compare (params)')
+    test("GET /reports/compare (params) 200", ok, msg)
+    test("  → tabla con total vendido", 'Total vendido' in resp.data.decode())
+
+    login('emp@test.com')
+    resp = client.get('/reports/compare', follow_redirects=False)
+    test("GET /reports/compare (empleado) → redirect", resp.status_code in (302, 303))
+
+    # ══════════════════════════════════════════════
+    #  12. Conversión de monedas (currency.py)
+    # ══════════════════════════════════════════════
+    print("\n── Conversión de monedas ──")
+
+    from app.utils.currency import convertir_cop_a
+    with app.app_context():
+        m, t, err = convertir_cop_a(42000, 'COP')
+        test("COP→COP sin cambio",
+             m == 42000 and t == 1.0 and err is None, f"{m}, {t}, {err}")
+        # Tasa seedeada al inicio: 1 USD = 4200 COP
+        m, t, err = convertir_cop_a(42000, 'USD')
+        test("COP→USD con tasa guardada (4200)",
+             m == 10.0 and t == 4200.0 and err is None, f"{m}, {t}, {err}")
+        m, t, err = convertir_cop_a(100, 'XXX')
+        test("Moneda no soportada → error",
+             m is None and t is None and err is not None, f"{err}")
+
+    # ══════════════════════════════════════════════
     #  SUMMARY
     # ══════════════════════════════════════════════
     passed = sum(1 for s, _, _ in test_results if s == PASS)
