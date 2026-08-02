@@ -51,14 +51,14 @@
                         <div class="form-group">
                             <label for="stock_minimo" class="form-label">Stock mínimo <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
                             <input type="number" class="form-input" id="stock_minimo" name="stock_minimo"
-                                   value="{{ insumo.stock_minimo if insumo else '' }}" min="0" placeholder="0">
+                                   value="{{ insumo.stock_minimo if insumo and insumo.stock_minimo is not none else '' }}" min="0" placeholder="0">
                         </div>
                     </div>
                     <div>
                         <div class="form-group">
                             <label for="stock_maximo" class="form-label">Stock máximo <span class="text-muted" style="font-weight:400;">(opcional)</span></label>
                             <input type="number" class="form-input" id="stock_maximo" name="stock_maximo"
-                                   value="{{ insumo.stock_maximo if insumo else '' }}" min="0" placeholder="0">
+                                   value="{{ insumo.stock_maximo if insumo and insumo.stock_maximo is not none else '' }}" min="0" placeholder="0">
                         </div>
                     </div>
                 </div>

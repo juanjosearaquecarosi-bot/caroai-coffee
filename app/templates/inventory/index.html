@@ -40,7 +40,7 @@
                 <td class="mono-number">${{ "{:,}".format(insumo.costo_unitario_cop) }}</td>
                 <td>
                     <strong class="mono-number">{{ insumo.stock_actual }}</strong>
-                    {% if insumo.stock_minimo > 0 %}
+                    {% if insumo.stock_minimo is not none and insumo.stock_minimo > 0 %}
                     <div class="progress-bar mt-1" style="max-width: 80px;">
                         {% set pct = (insumo.stock_actual / (insumo.stock_minimo * 2)) * 100 %}
                         {% if pct > 100 %}{% set pct = 100 %}{% endif %}
@@ -57,7 +57,7 @@
                         <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
                         Agotado
                     </span>
-                    {% elif insumo.stock_actual <= insumo.stock_minimo %}
+                    {% elif insumo.stock_minimo is not none and insumo.stock_actual <= insumo.stock_minimo %}
                     <span class="badge badge-stock-bajo">
                         <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="3"/></svg>
                         Stock bajo

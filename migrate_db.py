@@ -80,10 +80,13 @@ if __name__ == '__main__':
             ('productos', 'precio_bs', 'FLOAT', False, None, None, None),
             ('productos', 'precio_cop', 'INTEGER', False, None, None, 0),
             ('productos', 'tipo', 'VARCHAR(20)', False, None, None, 'bebida'),
+            ('productos', 'categoria', 'VARCHAR(20)', False, None, None, 'bebida'),
             ('productos', 'precio_venta_cop', 'INTEGER', False, None, None, 0),
             ('productos', 'descuenta_inventario', 'BOOLEAN', False, None, None, False),
             ('productos', 'insumo_id', 'INTEGER', True, 'insumos', 'id', None),
             ('mesas', 'fecha_apertura', 'TIMESTAMP', False, None, None, None),
+            ('tasas_cambio', 'tipo', 'VARCHAR(30)', False, None, None, None),
+            ('insumos', 'stock_maximo', 'INTEGER', False, None, None, None),
         ]
 
         for table, col_name, col_type, es_fk, ref_table, ref_col, default_val in column_fixes:
@@ -195,6 +198,31 @@ if __name__ == '__main__':
                         print(f'  ⚠️ Error: {e}')
                 else:
                     print('  ✅ producto_id ya es NULLABLE.')
+
+        # ──────────────────────────────────────────────
+        #  3B. Hacer nullable insumos.stock_minimo (Postgres)
+        #      El modelo actual lo define nullable=True y el formulario
+        #      permite dejarlo vacío (None). El esquema viejo lo tenía
+        #      NOT NULL DEFAULT 0, lo que producía IntegrityError al
+        #      guardar un insumo sin stock mínimo.
+        # ──────────────────────────────────────────────
+        if 'insumos' in tables and engine_name == 'postgresql':
+            cols = {c['name']: c for c in insp.get_columns('insumos')}
+            if 'stock_minimo' in cols:
+                nullable = cols['stock_minimo'].get('nullable', True)
+                if not nullable:
+                    print('  → Haciendo insumos.stock_minimo NULLABLE (campo opcional del formulario)...')
+                    try:
+                        db.session.execute(text(
+                            'ALTER TABLE insumos ALTER COLUMN stock_minimo DROP NOT NULL'
+                        ))
+                        db.session.commit()
+                        print('  ✅ stock_minimo ahora es NULLABLE.')
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f'  ⚠️ Error: {e}')
+                else:
+                    print('  ✅ insumos.stock_minimo ya es NULLABLE.')
 
         # ──────────────────────────────────────────────
         #  4. Sembrar mesas por defecto si la tabla está vacía
