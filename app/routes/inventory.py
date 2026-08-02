@@ -8,7 +8,7 @@ inventory_bp = Blueprint('inventory', __name__)
 
 @inventory_bp.route('/')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def index():
     insumos = Insumo.query.order_by(Insumo.nombre).all()
     return render_template('inventory/index.html', insumos=insumos)
@@ -78,7 +78,7 @@ def delete(id):
 
 @inventory_bp.route('/<int:id>/movimientos')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def movimientos(id):
     insumo = Insumo.query.get_or_404(id)
     movimientos = MovimientoInventario.query.filter_by(insumo_id=id).order_by(MovimientoInventario.fecha.desc()).all()
@@ -86,7 +86,7 @@ def movimientos(id):
 
 @inventory_bp.route('/<int:id>/movimiento/nuevo', methods=['GET', 'POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def nuevo_movimiento(id):
     insumo = Insumo.query.get_or_404(id)
     if request.method == 'POST':

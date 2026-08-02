@@ -6,7 +6,7 @@ from flask_login import current_user
 def role_required(*roles):
     """
     Decorator that restricts access to views based on user roles.
-    Usage: @role_required('admin') or @role_required('admin', 'employee')
+    Usage: @role_required('admin') or @role_required('admin', 'empleado')
     """
     def decorator(f):
         @wraps(f)

@@ -2,7 +2,6 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required
 from ..models import db, Nota, Mesa, Pedido
 from ..utils.decorators import role_required
-from datetime import datetime
 
 notas_bp = Blueprint('notas', __name__, url_prefix='/notas')
 

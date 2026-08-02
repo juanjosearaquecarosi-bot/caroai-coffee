@@ -85,6 +85,7 @@ def create_app():
     from .routes.gastos import gastos_bp
     from .routes.tasas import tasas_bp
     from .routes.facturas import facturas_bp
+    from .routes.notas import notas_bp
     app.register_blueprint(sales_bp, url_prefix='/sales')
     app.register_blueprint(pos_bp)
     app.register_blueprint(inventory_bp, url_prefix='/inventory')
@@ -93,6 +94,7 @@ def create_app():
     app.register_blueprint(gastos_bp, url_prefix='/gastos')
     app.register_blueprint(tasas_bp, url_prefix='/tasas')
     app.register_blueprint(facturas_bp, url_prefix='/facturas')
+    app.register_blueprint(notas_bp, url_prefix='/notas')
 
     @app.route('/')
     def index():

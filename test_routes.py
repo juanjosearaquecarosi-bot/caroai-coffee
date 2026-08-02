@@ -1,17 +1,25 @@
 """
-test_routes.py  —  Comprehensive stability test for Caroai MVP.
-Tests all major routes with real Flask test_client using file-based SQLite.
+test_routes.py  —  Stability test for Caroai MVP (Fase 3, actualizado).
+
+Adaptado al esquema actual:
+  - Ubicacion → Mesa (Pedido.mesa_id)
+  - POS es un blueprint propio (/pos/...) en vez de /sales/pos
+  - La caja rápida es /sales/ (cart en sesión)
+  - Se eliminó la sección /tables/ (el mapa de mesas es /pos/)
+  - Void/restore viejos → anulación lógica vía /pos/pedido/<id>/anular
+  - CSRF desactivado en config (no basta con el entorno en este proyecto)
+  - Permisos: rol real del sistema es 'empleado' (no 'employee')
+
+Uso:  python test_routes.py
 """
 
 import os
 import sys
-import traceback
 import tempfile
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 TEST_DB = os.path.join(tempfile.gettempdir(), 'caroai_test.db')
-# Remove if exists
 if os.path.exists(TEST_DB):
     os.remove(TEST_DB)
 
@@ -20,7 +28,9 @@ os.environ['DATABASE_URL'] = f'sqlite:///{TEST_DB}'
 os.environ['WTF_CSRF_ENABLED'] = 'False'
 
 from app import create_app
-from app.models import db, Usuario, Ubicacion, Producto, Insumo, TasaCambio, Gasto, Pedido, PedidoItem
+from app.models import (
+    db, Usuario, Mesa, Producto, Insumo, TasaCambio, Gasto, Pedido,
+)
 from datetime import datetime, date
 
 PASS = "✅  PASS"
@@ -40,26 +50,53 @@ def test(name, ok, detail=""):
 
 def run_tests():
     app = create_app()
+    # CSRFProtect lee la config en tiempo de request: desactivar en config, no solo en el entorno
+    app.config['WTF_CSRF_ENABLED'] = False
     client = app.test_client()
 
     with app.app_context():
         db.create_all()
 
-        # ── Seed test users ──
+        # ── Seed usuarios (rol real del sistema: 'empleado') ──
         admin = Usuario(nombre='Admin Test', email='admin@test.com', rol='admin')
         admin.set_password('test123')
-        emp = Usuario(nombre='Employee Test', email='emp@test.com', rol='empleado')
+        emp = Usuario(nombre='Empleado Test', email='emp@test.com', rol='empleado')
         emp.set_password('test123')
         db.session.add_all([admin, emp])
+
+        # ── Seed mesas ──
+        mesas = [Mesa(nombre=f'Mesa {i}') for i in range(1, 7)] + [Mesa(nombre='Barra')]
+        db.session.add_all(mesas)
+
+        # ── Seed insumo + productos ──
+        ins = Insumo(nombre='Café test kg', unidad_medida='kg',
+                     costo_unitario_cop=72000, stock_actual=10, stock_minimo=2)
+        db.session.add(ins)
+        prod = Producto(nombre='Café Americano', tipo='bebida', categoria='bebida',
+                        precio_cop=4500, precio_venta_cop=4500, descuenta_inventario=True)
+        prod2 = Producto(nombre='Capuchino', tipo='bebida', categoria='bebida',
+                         precio_cop=6500, precio_venta_cop=6500, descuenta_inventario=True)
+        db.session.add_all([prod, prod2])
+
+        # ── Seed tasa USD→COP (para POS/sales/reports) ──
+        tasa = TasaCambio(moneda_origen='USD', moneda_destino='COP',
+                          tasa=4200.0, vigente_desde=datetime.utcnow())
+        db.session.add(tasa)
         db.session.commit()
 
-        admin_id = admin.id
-        emp_id = emp.id
+        mesa1_id = mesas[0].id
+        mesa2_id = mesas[1].id
+        ins_id = ins.id
+        prod_id = prod.id
+        prod2_id = prod2.id
 
-    def login(email, password):
+    def login(email):
+        """Cambia de sesión. auth.login no cambia de usuario si ya hay sesión activa,
+        así que se hace logout previo."""
+        client.get('/auth/logout', follow_redirects=False)
         return client.post('/auth/login', data={
             'email': email,
-            'password': password,
+            'password': 'test123',
         }, follow_redirects=False)
 
     def assert_ok(response, route_name):
@@ -70,7 +107,7 @@ def run_tests():
         return False, f"HTTP {response.status_code} on {route_name}"
 
     print("\n" + "=" * 60)
-    print("  CAROAI MVP — TEST DE ESTABILIDAD")
+    print("  CAROAI MVP — TEST DE ESTABILIDAD (Fase 3)")
     print("=" * 60)
 
     # ══════════════════════════════════════════════
@@ -81,412 +118,305 @@ def run_tests():
     resp = client.get('/auth/login')
     test("GET /auth/login", resp.status_code == 200)
 
-    resp = login('admin@test.com', 'test123')
+    resp = client.post('/auth/login', data={'email': 'admin@test.com', 'password': 'test123'},
+                       follow_redirects=False)
     test("POST login as admin", resp.status_code in (302, 303))
 
-    resp = login('emp@test.com', 'test123')
-    test("POST login as employee", resp.status_code in (302, 303))
-
+    client.get('/auth/logout', follow_redirects=False)
     resp = client.post('/auth/login', data={'email': 'admin@test.com', 'password': 'wrong'},
                        follow_redirects=True)
     test("Bad login stays on page", resp.status_code == 200)
-
     text = resp.data.decode()
     test("Bad login shows error message",
          'inválido' in text.lower() or 'incorrect' in text.lower() or 'intente' in text.lower())
 
     # ══════════════════════════════════════════════
-    #  2. /tasas/
+    #  2. /tasas/ (admin only)
     # ══════════════════════════════════════════════
     print("\n── /tasas/ ──")
 
-    with app.app_context():
-        tasa = TasaCambio(moneda_origen='COP', moneda_destino='USD',
-                           tasa=4200.0, vigente_desde=datetime.utcnow())
-        db.session.add(tasa)
-        db.session.commit()
-        tasa_id = tasa.id
-
-    # Anon → redirect
-    with client.session_transaction() as sess:
-        sess.clear()
-    resp = client.get('/tasas/')
-    test("GET /tasas/ (anon) → redirect", resp.status_code in (302, 303))
-
-    # Admin
-    login('admin@test.com', 'test123')
+    login('admin@test.com')
     resp = client.get('/tasas/', follow_redirects=True)
     ok, msg = assert_ok(resp, '/tasas/')
     test("GET /tasas/ (admin) 200", ok, msg)
-    test("  → shows COP → USD", 'COP' in resp.data.decode() and 'USD' in resp.data.decode())
+    test("  → shows USD/COP", 'USD' in resp.data.decode() and 'COP' in resp.data.decode())
 
-    # Create form
     resp = client.get('/tasas/create')
     test("GET /tasas/create", resp.status_code == 200)
 
-    # POST create
     resp = client.post('/tasas/create', data={
-        'moneda_origen': 'USD',
-        'moneda_destino': 'VES',
-        'tasa': 100,
+        'moneda_origen': 'USD', 'moneda_destino': 'VES', 'tasa': 100,
         'vigente_desde': '2026-07-01T00:00',
     }, follow_redirects=True)
-    test("POST /tasas/create redirects", resp.status_code == 200)
-    test("  → contains updated list", 'USD' in resp.data.decode() and 'VES' in resp.data.decode())
-
-    # Edit form
-    resp = client.get(f'/tasas/{tasa_id}/edit')
-    test(f"GET /tasas/{tasa_id}/edit", resp.status_code == 200)
-
-    # ══════════════════════════════════════════════
-    #  3. SEED: Productos & insumos for sales + inventory tests
-    # ══════════════════════════════════════════════
-    print("\n── Seed data ──")
+    test("POST /tasas/create 200", resp.status_code == 200)
 
     with app.app_context():
-        ins = Insumo(nombre='Café test kg', unidad_medida='kg',
-                      costo_unitario_cop=72000, stock_actual=10, stock_minimo=2)
-        db.session.add(ins)
-        db.session.flush()
-
-        prod = Producto(nombre='Café Americano', tipo='bebida',
-                         precio_venta_cop=4500, descuenta_inventario=True)
-        prod2 = Producto(nombre='Capuchino', tipo='bebida',
-                          precio_venta_cop=6500, descuenta_inventario=True)
-        db.session.add_all([prod, prod2])
-        db.session.commit()
-
-        ins_id = ins.id
-        prod_id = prod.id
-        prod2_id = prod2.id
-        test("Seed: insumo + productos", True)
+        t = TasaCambio.query.filter_by(moneda_origen='USD', moneda_destino='VES').first()
+        tasa_id = t.id if t else None
+    if tasa_id:
+        resp = client.get(f'/tasas/{tasa_id}/edit')
+        test("GET /tasas/{id}/edit", resp.status_code == 200)
 
     # ══════════════════════════════════════════════
-    #  4. /sales/ + POS
+    #  3. POS (blueprint propio /pos/...)
+    # ══════════════════════════════════════════════
+    print("\n── POS /pos/ ──")
+
+    login('admin@test.com')
+    resp = client.get('/pos/', follow_redirects=True)
+    ok, msg = assert_ok(resp, '/pos/')
+    test("GET /pos/ (mapa) 200", ok, msg)
+    test("  → shows Mesa 1", 'Mesa 1' in resp.data.decode())
+
+    resp = client.post(f'/pos/{mesa1_id}/open', follow_redirects=False)
+    test(f"POST /pos/{mesa1_id}/open → 302", resp.status_code in (302, 303))
+    with app.app_context():
+        m = db.session.get(Mesa, mesa1_id)
+        test("  → mesa ocupada", m.estado == 'ocupada')
+
+    resp = client.get(f'/pos/{mesa1_id}', follow_redirects=True)
+    ok, msg = assert_ok(resp, f'/pos/{mesa1_id}')
+    test(f"GET /pos/{mesa1_id} (POS mesa) 200", ok, msg)
+    test("  → catálogo con Café Americano", 'Café Americano' in resp.data.decode())
+
+    resp = client.post(f'/pos/{mesa1_id}/add', data={'producto_id': prod_id, 'cantidad': 2},
+                       follow_redirects=False)
+    test(f"POST /pos/{mesa1_id}/add → 302", resp.status_code in (302, 303))
+
+    with app.app_context():
+        po = Pedido.query.filter_by(mesa_id=mesa1_id, estado='abierto').first()
+        test("  → item en pedido (cant 2)",
+             po is not None and len(po.items) == 1 and po.items[0].cantidad == 2,
+             f"items={len(po.items) if po else 0}")
+
+    resp = client.post(f'/pos/{mesa1_id}/charge', data={
+        'moneda_pago': 'COP', 'metodo_pago': 'efectivo',
+    }, follow_redirects=False)
+    test(f"POST /pos/{mesa1_id}/charge → 302", resp.status_code in (302, 303))
+
+    pos_paid_id = None
+    with app.app_context():
+        p = Pedido.query.filter_by(mesa_id=mesa1_id, estado='pagado').first()
+        test("  → pedido pagado (total 9000)",
+             p is not None and p.total == 9000,
+             f"total={p.total if p else None}")
+        if p:
+            pos_paid_id = p.id
+
+    if pos_paid_id:
+        resp = client.get(f'/pos/pedido/{pos_paid_id}', follow_redirects=True)
+        ok, msg = assert_ok(resp, f'/pos/pedido/{pos_paid_id}')
+        test(f"GET /pos/pedido/{pos_paid_id} 200", ok, msg)
+
+    # ══════════════════════════════════════════════
+    #  4. /sales/ (caja rápida, cart en sesión)
     # ══════════════════════════════════════════════
     print("\n── /sales/ ──")
 
-    with app.app_context():
-        ubi = Ubicacion(nombre='Mesa 1', tipo='mesa')
-        db.session.add(ubi)
-        db.session.commit()
-        ubi_id = ubi.id
-
-        pedido = Pedido(ubicacion_id=ubi_id, total=0, estado='abierto')
-        db.session.add(pedido)
-        db.session.flush()
-
-        prod_cafe = db.session.get(Producto, prod_id)
-        item = PedidoItem(pedido_id=pedido.id, producto_id=prod_cafe.id,
-                           cantidad=2, precio_unitario_cop=4500, subtotal_cop=9000)
-        db.session.add(item)
-        db.session.commit()
-
-        pedido_id = pedido.id
-        item_id = item.id
-
-    login('admin@test.com', 'test123')
-
+    login('admin@test.com')
     resp = client.get('/sales/', follow_redirects=True)
     ok, msg = assert_ok(resp, '/sales/')
-    test("GET /sales/ (admin) 200", ok, msg)
-    test("  → shows pedido #", f'#{pedido_id}' in resp.data.decode())
+    test("GET /sales/ (caja) 200", ok, msg)
 
-    # Employee
-    login('emp@test.com', 'test123')
+    resp = client.post('/sales/add', data={'producto_id': prod2_id, 'cantidad': 1},
+                       follow_redirects=False)
+    test("POST /sales/add → 302", resp.status_code in (302, 303))
     resp = client.get('/sales/', follow_redirects=True)
-    ok, msg = assert_ok(resp, '/sales/')
-    test("GET /sales/ (employee) 200", ok, msg)
+    ok, msg = assert_ok(resp, '/sales/ con cart')
+    test("GET /sales/ (con cart) 200", ok, msg)
+    with client.session_transaction() as sess:
+        cart = sess.get('cart', [])
+    test("  → carrito en sesión con Capuchino x1",
+         len(cart) == 1 and cart[0]['producto_id'] == prod2_id and cart[0]['cantidad'] == 1,
+         f"cart={cart}")
 
-    # Detail
-    login('admin@test.com', 'test123')
-    resp = client.get(f'/sales/{pedido_id}', follow_redirects=True)
-    ok, msg = assert_ok(resp, f'/sales/{pedido_id}')
-    test(f"GET /sales/{pedido_id}/detail", ok, msg)
-    test("  → shows products in order", 'Café Americano' in resp.data.decode())
+    resp = client.post('/sales/charge', data={
+        'moneda_pago': 'COP', 'metodo_pago': 'efectivo',
+    }, follow_redirects=False)
+    test("POST /sales/charge → 302", resp.status_code in (302, 303))
 
-    # Add item
-    resp = client.post(f'/sales/{pedido_id}/add_item', data={
-        'producto_id': prod2_id,
-        'cantidad': 1,
-    }, follow_redirects=True)
-    test("POST add_item", resp.status_code == 200)
-    test("  → now shows Capuchino", 'Capuchino' in resp.data.decode())
-
-    # Remove item
+    sales_paid_id = None
     with app.app_context():
-        p = db.session.get(Pedido, pedido_id)
-        new_items = [i for i in p.items if i.id not in (item_id,)]
-    if new_items:
-        new_item_id = new_items[0].id
-        resp = client.post(f'/sales/{pedido_id}/remove_item/{new_item_id}',
-                           follow_redirects=True)
-        test(f"POST remove_item/{new_item_id}", resp.status_code == 200)
-        test("  → Capuchino removed", 'Capuchino' not in resp.data.decode())
-    else:
-        test("POST remove_item (no items to remove)", True, "SKIP")
+        sp = Pedido.query.filter_by(estado='pagado').order_by(Pedido.id.desc()).first()
+        if sp:
+            sales_paid_id = sp.id
 
-    # Close form
-    resp = client.get(f'/sales/{pedido_id}/close_form')
-    ok, msg = assert_ok(resp, f'/sales/{pedido_id}/close_form')
-    test("GET close_form", ok, msg)
+    resp = client.get('/sales/history', follow_redirects=True)
+    ok, msg = assert_ok(resp, '/sales/history')
+    test("GET /sales/history 200", ok, msg)
 
-    # Pay the pedido
-    resp = client.post(f'/sales/{pedido_id}/close_form', data={
-        'moneda_pago': 'COP',
-        'metodo_pago': 'efectivo',
-        'observaciones': 'Pago de prueba',
-    }, follow_redirects=True)
-    test("POST close_form (pay)", resp.status_code == 200)
-
-    with app.app_context():
-        p = db.session.get(Pedido, pedido_id)
-        test("  → pedido estado = pagado", p.estado == 'pagado',
-             f"actual: {p.estado}")
+    if sales_paid_id:
+        resp = client.get(f'/sales/{sales_paid_id}', follow_redirects=True)
+        ok, msg = assert_ok(resp, f'/sales/{sales_paid_id}')
+        test(f"GET /sales/{sales_paid_id} (detalle) 200", ok, msg)
+        test("  → shows Capuchino", 'Capuchino' in resp.data.decode())
 
     # ══════════════════════════════════════════════
-    #  5. POS
-    # ══════════════════════════════════════════════
-    print("\n── POS /sales/pos ──")
-
-    login('admin@test.com', 'test123')
-
-    resp = client.get('/sales/pos', follow_redirects=True)
-    ok, msg = assert_ok(resp, '/sales/pos')
-    test("GET /sales/pos 200", ok, msg)
-    test("  → shows Mesa 1", 'Mesa 1' in resp.data.decode())
-
-    resp = client.get(f'/sales/pos/{ubi_id}', follow_redirects=True)
-    ok, msg = assert_ok(resp, f'/sales/pos/{ubi_id}')
-    test(f"GET /sales/pos/{ubi_id} 200", ok, msg)
-
-    # Open a NEW table via POS
-    with app.app_context():
-        ubi2 = Ubicacion(nombre='Mesa 2', tipo='mesa')
-        db.session.add(ubi2)
-        db.session.commit()
-        ubi2_id = ubi2.id
-
-    resp = client.post(f'/sales/pos/{ubi2_id}/open', follow_redirects=True)
-    test(f"POST /sales/pos/{ubi2_id}/open", resp.status_code == 200)
-
-    with app.app_context():
-        p2 = Pedido.query.filter_by(ubicacion_id=ubi2_id, estado='abierto').first()
-        if p2:
-            p2_id = p2.id
-            resp = client.post(f'/sales/{p2_id}/quick_add/{prod_id}',
-                               data={'cantidad': 3}, follow_redirects=True)
-            test(f"POST quick_add prod#{prod_id}", resp.status_code == 200)
-            test("  → Café Americano in POS",
-                 'Café Americano' in resp.data.decode())
-
-            # Quick remove
-            with app.app_context():
-                p2_refreshed = db.session.get(Pedido, p2_id)
-                qi_items = [i for i in p2_refreshed.items]
-            if qi_items:
-                qi_id = qi_items[0].id
-                resp = client.post(f'/sales/{p2_id}/quick_remove/{qi_id}',
-                                   follow_redirects=True)
-                test(f"POST quick_remove item#{qi_id}", resp.status_code == 200)
-        else:
-            test("POST quick_add pedido check", False, "no abierto pedido found")
-
-    # ══════════════════════════════════════════════
-    #  6. /gastos/
+    #  5. /gastos/ (admin only)
     # ══════════════════════════════════════════════
     print("\n── /gastos/ ──")
 
-    with app.app_context():
-        gasto = Gasto(concepto='Test gasto', categoria='nomina',
-                       monto=100000, moneda='COP', fecha=date.today())
-        db.session.add(gasto)
-        db.session.commit()
-        gasto_id = gasto.id
-
-    login('admin@test.com', 'test123')
-
+    login('admin@test.com')
     resp = client.get('/gastos/', follow_redirects=True)
     ok, msg = assert_ok(resp, '/gastos/')
     test("GET /gastos/ (admin) 200", ok, msg)
-    test("  → shows Test gasto", 'Test gasto' in resp.data.decode())
 
-    # With filters
-    resp = client.get(f'/gastos/?mes={date.today().month}&anio={date.today().year}&categoria=nomina',
-                      follow_redirects=True)
-    ok, msg = assert_ok(resp, '/gastos/ filtered')
-    test("GET /gastos/ with filters 200", ok, msg)
-
-    # Create form
     resp = client.get('/gastos/create')
     test("GET /gastos/create", resp.status_code == 200)
 
-    # POST create
+    hoy = date.today().isoformat()
     resp = client.post('/gastos/create', data={
-        'concepto': 'Nuevo gasto test',
-        'categoria': 'insumos',
-        'monto': 50000,
-        'moneda': 'COP',
-        'fecha': '2026-07-19',
+        'concepto': 'Nuevo gasto test', 'categoria': 'insumos', 'monto': 50000,
+        'moneda': 'COP', 'fecha': hoy,
     }, follow_redirects=True)
     test("POST /gastos/create 200", resp.status_code == 200)
-    test("  → shows new gasto", 'Nuevo gasto test' in resp.data.decode())
+    test("  → shows nuevo gasto", 'Nuevo gasto test' in resp.data.decode())
 
-    # Edit form
-    resp = client.get(f'/gastos/{gasto_id}/edit')
-    test(f"GET /gastos/{gasto_id}/edit", resp.status_code == 200)
-
-    # Employee → forbidden
-    login('emp@test.com', 'test123')
-    resp = client.get('/gastos/', follow_redirects=True)
-    test("GET /gastos/ (employee) → redirect",
-         '/tables/' in resp.request.url or '/auth/' in resp.request.url)
+    with app.app_context():
+        g = Gasto.query.filter_by(concepto='Nuevo gasto test').first()
+        gasto_id = g.id if g else None
+    if gasto_id:
+        resp = client.get(f'/gastos/{gasto_id}/edit')
+        test("GET /gastos/{id}/edit", resp.status_code == 200)
+        resp = client.post(f'/gastos/{gasto_id}/delete', follow_redirects=True)
+        test("POST /gastos/{id}/delete", resp.status_code == 200)
 
     # ══════════════════════════════════════════════
-    #  7. /inventory/
+    #  6. /inventory/ (admin + empleado)
     # ══════════════════════════════════════════════
     print("\n── /inventory/ ──")
 
-    login('admin@test.com', 'test123')
-
+    login('admin@test.com')
     resp = client.get('/inventory/', follow_redirects=True)
     ok, msg = assert_ok(resp, '/inventory/')
     test("GET /inventory/ (admin) 200", ok, msg)
     test("  → shows insumo", 'Café test kg' in resp.data.decode())
 
-    # Employee
-    login('emp@test.com', 'test123')
-    resp = client.get('/inventory/', follow_redirects=True)
-    ok, msg = assert_ok(resp, '/inventory/ (employee)')
-    test("GET /inventory/ (employee) 200", ok, msg)
-
-    # Movimientos
-    login('admin@test.com', 'test123')
     resp = client.get(f'/inventory/{ins_id}/movimientos', follow_redirects=True)
     ok, msg = assert_ok(resp, f'/inventory/{ins_id}/movimientos')
     test(f"GET /inventory/{ins_id}/movimientos 200", ok, msg)
 
-    # Nuevo movimiento form
     resp = client.get(f'/inventory/{ins_id}/movimiento/nuevo')
     test(f"GET /inventory/{ins_id}/movimiento/nuevo", resp.status_code == 200)
 
-    # POST movimiento
     resp = client.post(f'/inventory/{ins_id}/movimiento/nuevo', data={
-        'tipo': 'entrada',
-        'cantidad': 5,
-        'motivo': 'Test compra',
+        'tipo': 'entrada', 'cantidad': 5, 'motivo': 'Test compra',
     }, follow_redirects=True)
     test("POST nuevo movimiento (entrada)", resp.status_code == 200)
-    test("  → redirect to movimientos page", 'Movimiento' in resp.data.decode() or 'movimiento' in resp.data.decode())
-
     with app.app_context():
         ins_check = db.session.get(Insumo, ins_id)
         test("  → stock actualizado 10+5=15",
              ins_check.stock_actual == 15,
              f"stock={ins_check.stock_actual}")
 
+    # Empleado SÍ puede ver inventario y movimientos (fix de permisos)
+    login('emp@test.com')
+    resp = client.get('/inventory/', follow_redirects=True)
+    ok, msg = assert_ok(resp, '/inventory/ (empleado)')
+    test("GET /inventory/ (empleado) 200 ✓fix", ok, msg)
+
+    resp = client.get(f'/inventory/{ins_id}/movimientos', follow_redirects=True)
+    ok, msg = assert_ok(resp, f'/inventory/{ins_id}/movimientos (empleado)')
+    test("GET /inventory/{id}/movimientos (empleado) 200 ✓fix", ok, msg)
+
+    # ... pero NO puede crear insumos (admin only)
+    resp = client.get('/inventory/create', follow_redirects=False)
+    test("GET /inventory/create (empleado) → redirect", resp.status_code in (302, 303))
+
     # ══════════════════════════════════════════════
-    #  8. /reports/
+    #  7. /reports/ (diario: admin + empleado; mensual: admin)
     # ══════════════════════════════════════════════
     print("\n── /reports/ ──")
 
-    login('admin@test.com', 'test123')
-
+    login('admin@test.com')
     resp = client.get('/reports/', follow_redirects=True)
     ok, msg = assert_ok(resp, '/reports/')
-    test("GET /reports/ (daily, admin) 200", ok, msg)
+    test("GET /reports/ (diario, admin) 200", ok, msg)
 
     resp = client.get('/reports/monthly', follow_redirects=True)
     ok, msg = assert_ok(resp, '/reports/monthly')
     test("GET /reports/monthly (admin) 200", ok, msg)
 
-    # Employee can see daily
-    login('emp@test.com', 'test123')
+    # Empleado SÍ ve el reporte diario (fix de permisos), NO el mensual
+    login('emp@test.com')
     resp = client.get('/reports/', follow_redirects=True)
-    ok, msg = assert_ok(resp, '/reports/ (employee)')
-    test("GET /reports/ (employee) 200", ok, msg)
+    ok, msg = assert_ok(resp, '/reports/ (empleado)')
+    test("GET /reports/ (empleado) 200 ✓fix", ok, msg)
 
-    # Employee cannot see monthly
-    login('emp@test.com', 'test123')
-    resp = client.get('/reports/monthly', follow_redirects=True)
-    test("GET /reports/monthly (employee) → redirect",
-         '/tables/' in resp.request.url or '/auth/' in resp.request.url,
-         f"→ {resp.request.url}")
+    resp = client.get('/reports/monthly', follow_redirects=False)
+    test("GET /reports/monthly (empleado) → redirect", resp.status_code in (302, 303))
 
     # ══════════════════════════════════════════════
-    #  9. /tables/
+    #  8. Empleado opera POS y caja (fix de permisos)
     # ══════════════════════════════════════════════
-    print("\n── /tables/ ──")
+    print("\n── Empleado operando POS / Sales ──")
 
-    login('admin@test.com', 'test123')
+    login('emp@test.com')
+    resp = client.get('/pos/', follow_redirects=True)
+    ok, msg = assert_ok(resp, '/pos/ (empleado)')
+    test("GET /pos/ (empleado) 200 ✓fix", ok, msg)
 
-    resp = client.get('/tables/', follow_redirects=True)
-    ok, msg = assert_ok(resp, '/tables/')
-    test("GET /tables/ 200", ok, msg)
-    test("  → shows Mesa 1 and Mesa 2",
-         'Mesa 1' in resp.data.decode() and 'Mesa 2' in resp.data.decode())
+    resp = client.post(f'/pos/{mesa2_id}/open', follow_redirects=False)
+    test(f"POST /pos/{mesa2_id}/open (empleado) → 302 ✓fix", resp.status_code in (302, 303))
 
-    # Open a free ubicacion
-    with app.app_context():
-        ubi3 = Ubicacion(nombre='Mesa 3', tipo='mesa')
-        db.session.add(ubi3)
-        db.session.commit()
-        ubi3_id = ubi3.id
+    resp = client.post(f'/pos/{mesa2_id}/add', data={'producto_id': prod_id, 'cantidad': 1},
+                       follow_redirects=False)
+    test(f"POST /pos/{mesa2_id}/add (empleado) → 302 ✓fix", resp.status_code in (302, 303))
 
-    resp = client.post(f'/tables/open/{ubi3_id}', follow_redirects=True)
-    test(f"POST /tables/open/{ubi3_id} 200", resp.status_code == 200)
-    test("  → redirects to sales detail", 'Pedido' in resp.data.decode() or 'pedido' in resp.data.decode())
+    resp = client.post(f'/pos/{mesa2_id}/charge', data={
+        'moneda_pago': 'COP', 'metodo_pago': 'efectivo',
+    }, follow_redirects=False)
+    test(f"POST /pos/{mesa2_id}/charge (empleado) → 302 ✓fix", resp.status_code in (302, 303))
 
-    # Open again → should redirect (already occupied)
-    resp = client.post(f'/tables/open/{ubi3_id}', follow_redirects=True)
-    test(f"POST /tables/open/{ubi3_id} again 200 (no crash)", resp.status_code == 200)
+    resp = client.get('/sales/', follow_redirects=True)
+    ok, msg = assert_ok(resp, '/sales/ (empleado)')
+    test("GET /sales/ (empleado) 200 ✓fix", ok, msg)
+
+    resp = client.get('/sales/history', follow_redirects=True)
+    ok, msg = assert_ok(resp, '/sales/history (empleado)')
+    test("GET /sales/history (empleado) 200 ✓fix", ok, msg)
+
+    # Empleado bloqueado de módulos admin-only
+    for path in ['/gastos/', '/tasas/', '/facturas/', '/notas/']:
+        resp = client.get(path, follow_redirects=False)
+        test(f"GET {path} (empleado) → redirect", resp.status_code in (302, 303))
 
     # ══════════════════════════════════════════════
-    #  10. Void / Restore (anulación lógica)
+    #  9. /notas/ (admin only)
     # ══════════════════════════════════════════════
-    print("\n── Void / Restore ──")
+    print("\n── /notas/ ──")
 
-    login('admin@test.com', 'test123')
+    login('admin@test.com')
+    resp = client.get('/notas/', follow_redirects=True)
+    ok, msg = assert_ok(resp, '/notas/')
+    test("GET /notas/ (admin) 200", ok, msg)
 
-    with app.app_context():
-        # Find a pagado pedido or create one
-        p_to_pay = Pedido.query.filter_by(estado='abierto').first()
-        if p_to_pay:
-            p_to_pay.estado = 'pagado'
-            p_to_pay.pagado_en = datetime.utcnow()
-            p_to_pay.moneda_pago = 'COP'
-            p_to_pay.metodo_pago = 'efectivo'
-            db.session.commit()
-            pay_id = p_to_pay.id
+    resp = client.post('/notas/nueva', data={
+        'titulo': 'Recordatorio', 'tipo': 'general', 'contenido': 'x',
+    }, follow_redirects=True)
+    test("POST /notas/nueva 200", resp.status_code == 200)
+    test("  → nota visible", 'Recordatorio' in resp.data.decode())
 
-            if p_to_pay.items:
-                vi = p_to_pay.items[0]
+    # ══════════════════════════════════════════════
+    #  10. Anulación lógica (admin only)
+    # ══════════════════════════════════════════════
+    print("\n── Anulación /pos/pedido ──")
 
-                # Void item
-                resp = client.post(f'/sales/{pay_id}/void_item/{vi.id}',
-                                   data={'motivo': 'Test anulación'},
-                                   follow_redirects=True)
-                test(f"POST void_item #{vi.id}", resp.status_code == 200)
-                test("  → flash shows anulado", 'anulado' in resp.data.decode().lower())
+    login('admin@test.com')
+    if pos_paid_id:
+        resp = client.post(f'/pos/pedido/{pos_paid_id}/anular',
+                           data={'motivo': 'Test anulación'}, follow_redirects=False)
+        test(f"POST /pos/pedido/{pos_paid_id}/anular → 302", resp.status_code in (302, 303))
+        with app.app_context():
+            pp = db.session.get(Pedido, pos_paid_id)
+            test("  → pedido estado = anulado", pp.estado == 'anulado', f"estado={pp.estado}")
+            test("  → items anulados lógicamente",
+                 all(i.anulado for i in pp.items))
 
-                with app.app_context():
-                    vi_check = db.session.get(PedidoItem, vi.id)
-                    test("  → item.anulado = True",
-                         vi_check.anulado == True,
-                         f"anulado={vi_check.anulado}")
-
-                # Restore item
-                resp = client.post(f'/sales/{pay_id}/restore_item/{vi.id}',
-                                   follow_redirects=True)
-                test(f"POST restore_item #{vi.id}", resp.status_code == 200)
-                test("  → flash shows restaurado",
-                     'restaurado' in resp.data.decode().lower())
-
-                with app.app_context():
-                    vi_check = db.session.get(PedidoItem, vi.id)
-                    test("  → item.anulado = False",
-                         vi_check.anulado == False,
-                         f"anulado={vi_check.anulado}")
+        login('emp@test.com')
+        resp = client.post(f'/pos/pedido/{pos_paid_id}/anular',
+                           data={'motivo': 'x'}, follow_redirects=False)
+        test("POST anular (empleado) → redirect", resp.status_code in (302, 303))
 
     # ══════════════════════════════════════════════
     #  SUMMARY
@@ -510,7 +440,6 @@ def run_tests():
 
 if __name__ == '__main__':
     success = run_tests()
-    # Cleanup
     if os.path.exists(TEST_DB):
         os.remove(TEST_DB)
     sys.exit(0 if success else 1)

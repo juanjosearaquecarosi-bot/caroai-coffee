@@ -10,9 +10,9 @@ reports_bp = Blueprint('reports', __name__)
 
 @reports_bp.route('/')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def index():
-    """Daily report — accessible by both admin and employee."""
+    """Daily report — accessible by both admin and empleado."""
     today = date.today()
 
     today_start = datetime(today.year, today.month, today.day, 0, 0, 0)

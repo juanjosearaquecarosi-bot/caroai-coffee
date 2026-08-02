@@ -46,7 +46,7 @@ def _get_caja_id():
 
 @sales_bp.route('/')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def index():
     """POS cash-register main page."""
     productos = Producto.query.order_by(Producto.tipo, Producto.nombre).all()
@@ -72,7 +72,7 @@ def index():
 
 @sales_bp.route('/add', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def add_item():
     producto_id = request.form.get('producto_id', type=int)
     cantidad = request.form.get('cantidad', type=int, default=1)
@@ -123,7 +123,7 @@ def add_item():
 
 @sales_bp.route('/remove/<int:item_index>', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def remove_item(item_index):
     cart = _cart()
 
@@ -155,7 +155,7 @@ def remove_item(item_index):
 
 @sales_bp.route('/charge', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def charge():
     cart = _cart()
     if not cart:
@@ -225,7 +225,7 @@ def charge():
 
 @sales_bp.route('/history')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def history():
     pedidos = Pedido.query.filter_by(estado='pagado').order_by(Pedido.fecha_hora.desc()).all()
     return render_template('sales/history.html', pedidos=pedidos)
@@ -237,7 +237,7 @@ def history():
 
 @sales_bp.route('/<int:pedido_id>')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def detail(pedido_id):
     pedido = db.session.get(Pedido, pedido_id)
     if not pedido or pedido.estado != 'pagado':

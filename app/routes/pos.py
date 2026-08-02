@@ -16,7 +16,7 @@ pos_bp = Blueprint('pos', __name__, url_prefix='/pos')
 
 @pos_bp.route('/')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def index():
     """Mapa de mesas con estado y pedido activo."""
     mesas = Mesa.query.order_by(Mesa.id).all()
@@ -44,7 +44,7 @@ def index():
 
 @pos_bp.route('/<int:mesa_id>/open', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def open_mesa(mesa_id):
     mesa = db.session.get(Mesa, mesa_id)
     if not mesa:
@@ -72,7 +72,7 @@ def open_mesa(mesa_id):
 
 @pos_bp.route('/<int:mesa_id>')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def mesa(mesa_id):
     mesa = db.session.get(Mesa, mesa_id)
     if not mesa:
@@ -116,7 +116,7 @@ def mesa(mesa_id):
 
 @pos_bp.route('/<int:mesa_id>/add', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def add_item(mesa_id):
     mesa = db.session.get(Mesa, mesa_id)
     if not mesa:
@@ -181,7 +181,7 @@ def add_item(mesa_id):
 
 @pos_bp.route('/<int:mesa_id>/remove/<int:item_id>', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def remove_item(mesa_id, item_id):
     pedido = Pedido.query.filter_by(mesa_id=mesa_id, estado='abierto').first()
     if not pedido:
@@ -218,7 +218,7 @@ def remove_item(mesa_id, item_id):
 
 @pos_bp.route('/<int:mesa_id>/charge', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def charge(mesa_id):
     mesa = db.session.get(Mesa, mesa_id)
     pedido = Pedido.query.filter_by(mesa_id=mesa_id, estado='abierto').first()
@@ -246,7 +246,7 @@ def charge(mesa_id):
                 return jsonify({'ok': False, 'error': error_msg}), 400
             flash(error_msg, 'warning')
             return redirect(url_for('pos.mesa', mesa_id=mesa_id))
-        # Solo admin puede sobreescribir la tasa manualmente; employee usa la de BD
+        # Solo admin puede sobreescribir la tasa manualmente; empleado usa la de BD
         if current_user.rol == 'admin' and tasa_str:
             tasa_final = float(tasa_str)
             total_moneda_final = float(total_moneda_str) if total_moneda_str else monto_convertido
@@ -293,7 +293,7 @@ def charge(mesa_id):
 
 @pos_bp.route('/<int:mesa_id>/pendiente', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def pendiente(mesa_id):
     mesa = db.session.get(Mesa, mesa_id)
     pedido = Pedido.query.filter_by(mesa_id=mesa_id, estado='abierto').first()
@@ -317,7 +317,7 @@ def pendiente(mesa_id):
 
 @pos_bp.route('/history')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def history():
     pedidos = Pedido.query.filter(
         Pedido.estado.in_(['pagado', 'pendiente', 'abierto', 'anulado'])
@@ -331,7 +331,7 @@ def history():
 
 @pos_bp.route('/pedido/<int:pedido_id>')
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def detail(pedido_id):
     pedido = db.session.get(Pedido, pedido_id)
     if not pedido or pedido.estado not in ('pagado', 'pendiente'):
@@ -345,7 +345,7 @@ def detail(pedido_id):
 
 @pos_bp.route('/pedido/<int:pedido_id>/edit', methods=['GET', 'POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def edit(pedido_id):
     """Editar un pedido abierto: cambiar cantidades, eliminar líneas, agregar productos."""
     pedido = db.session.get(Pedido, pedido_id)
@@ -486,7 +486,7 @@ def _is_ajax():
 
 @pos_bp.route('/<int:mesa_id>/add_manual', methods=['POST'])
 @login_required
-@role_required('admin', 'employee')
+@role_required('admin', 'empleado')
 def add_manual(mesa_id):
     """Agrega un cargo manual (monto sin producto) al pedido abierto."""
     mesa = db.session.get(Mesa, mesa_id)

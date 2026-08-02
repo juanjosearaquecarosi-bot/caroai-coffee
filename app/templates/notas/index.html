@@ -9,6 +9,9 @@
 .nota-cobrada { border-left: 3px solid var(--color-success); opacity: 0.75; }
 .nota-general { border-left: 3px solid var(--color-info); }
 .nota-monto { font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; }
+.pill{padding:.625rem .875rem;border:2px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-bg);text-align:center;cursor:pointer;transition:all .15s;font-size:.8125rem;font-weight:600;color:var(--color-text-secondary);font-family:var(--font-body)}
+.pill:hover{border-color:var(--color-accent);color:var(--color-accent)}
+.pill-active{border-color:var(--color-success)!important;background:var(--color-success-bg)!important;color:var(--color-success-text)!important}
 </style>
 
 <div class="page-header">
@@ -132,7 +135,7 @@ function selectTipo(el) {
                 <tr>
                     <td><strong>{{ n.titulo }}</strong>{% if n.contenido %}<br><span class="text-muted text-small">{{ n.contenido }}</span>{% endif %}</td>
                     <td>{{ n.cliente or '—' }}</td>
-                    <td class="nota-monto text-warning">${{ "{:,}".format(n.monto_cop) }} COP</td>
+                    <td class="nota-monto text-warning">{% if n.monto_cop %}${{ "{:,}".format(n.monto_cop) }} COP{% else %}—{% endif %}</td>
                     <td>{{ n.mesa.nombre if n.mesa else '—' }}</td>
                     <td>{% if n.pedido %}#{{ n.pedido_id }}{% else %}—{% endif %}</td>
                     <td class="text-small">{{ n.creado_en.strftime('%d/%m/%Y') }}</td>
@@ -159,7 +162,7 @@ function selectTipo(el) {
             <tfoot>
                 <tr>
                     <td colspan="2" style="text-align:right;">Total deudas pendientes</td>
-                    <td><strong class="mono-number text-warning">${{ "{:,}".format(deudas_pendientes|sum(attribute='monto_cop')) }} COP</strong></td>
+                    <td><strong class="mono-number text-warning">${{ "{:,}".format(deudas_pendientes|selectattr('monto_cop')|sum(attribute='monto_cop')) }} COP</strong></td>
                     <td colspan="4"></td>
                 </tr>
             </tfoot>
@@ -233,7 +236,7 @@ function selectTipo(el) {
                 <tr>
                     <td><strong>{{ n.titulo }}</strong></td>
                     <td>{{ n.cliente or '—' }}</td>
-                    <td class="nota-monto" style="color:var(--color-success);">${{ "{:,}".format(n.monto_cop) }} COP</td>
+                    <td class="nota-monto" style="color:var(--color-success);">{% if n.monto_cop %}${{ "{:,}".format(n.monto_cop) }} COP{% else %}—{% endif %}</td>
                     <td class="text-small">{{ n.creado_en.strftime('%d/%m/%Y') }}</td>
                     <td class="cell-actions">
                         <form action="{{ url_for('notas.eliminar', id=n.id) }}" method="post" style="display:inline;"
