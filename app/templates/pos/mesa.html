@@ -256,8 +256,8 @@
 
 <style>
 .charge-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;backdrop-filter:blur(4px);align-items:center;justify-content:center}
-.charge-modal-overlay.open{display:flex}
-.charge-modal{background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;max-width:440px;padding:2rem;animation:slideUp .25s ease}
+.charge-modal-overlay.open{display:flex;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.charge-modal{background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;max-width:440px;padding:2rem;animation:slideUp .25s ease;display:flex;flex-direction:column;max-height:min(90vh,600px);max-height:min(90dvh,600px)}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .charge-modal h2{font-family:var(--font-display);font-size:1.375rem;margin-bottom:.25rem}
 .charge-modal .modal-subtitle{color:var(--color-text-secondary);font-size:.875rem;margin-bottom:1.5rem}
@@ -269,7 +269,8 @@
 .charge-modal .form-select,.charge-modal .form-textarea{width:100%;padding:.625rem .875rem;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:.875rem;background:var(--color-bg);color:var(--color-text-primary);outline:none;transition:border-color .2s;box-sizing:border-box}
 .charge-modal .form-select:focus,.charge-modal .form-textarea:focus{border-color:var(--color-accent);box-shadow:0 0 0 3px rgba(184,145,110,0.15)}
 .charge-modal .form-textarea{resize:vertical;min-height:60px}
-.charge-modal .form-actions{display:flex;gap:.75rem;margin-top:1.5rem}
+.charge-modal form{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;min-height:0}
+.charge-modal .form-actions{display:flex;gap:.75rem;margin-top:0;padding-top:.75rem;border-top:1px solid var(--color-border-light);position:sticky;bottom:0;background:var(--color-surface);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom,0)}
 .charge-modal .btn-cancel{flex:1;padding:.75rem;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:transparent;font-weight:600;font-size:.875rem;color:var(--color-text-secondary);cursor:pointer;transition:all .15s;font-family:var(--font-body)}
 .charge-modal .btn-cancel:hover{background:var(--color-surface-hover);border-color:var(--color-text-muted)}
 .charge-modal .btn-confirm{flex:2;padding:.75rem;border:none;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--color-success),#6A9A7D);color:#fff;font-weight:700;font-size:.875rem;cursor:pointer;transition:all .15s;font-family:var(--font-body)}
@@ -493,18 +494,26 @@ function submitManual(event) {
     var btn = document.getElementById('manualBtn');
     btn.disabled = true;
     btn.textContent = 'Agregando…';
-    var fd = new FormData(document.getElementById('manualForm'));
-    fd.set('csrf_token', CSRF);
+    var form = document.getElementById('manualForm');
+    var fd = new FormData(form);
+    var tokenInput = form.querySelector('input[name="csrf_token"]');
+    fd.set('csrf_token', tokenInput ? tokenInput.value : CSRF);
     fetch(MANUAL_URL, {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}})
-    .then(function(r){return r.json()})
-    .then(function(d){
+    .then(function(r){
+        return r.json().then(function(data){return{status:r.status,data:data}});
+    })
+    .then(function(res){
         btn.disabled = false;
         btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar';
-        if (d.ok) {
+        if (res.status === 400 && res.data.error === 'csrf_expired') {
+            alert(res.data.message || 'La sesión expiró. Recarga la página e intenta de nuevo.');
+            return;
+        }
+        if (res.data.ok) {
             document.getElementById('manualModal').classList.remove('open');
-            renderItems(d.items, d.total);
+            renderItems(res.data.items, res.data.total);
         } else {
-            alert(d.error || 'Error al agregar cargo manual');
+            alert(res.data.error || 'Error al agregar cargo manual');
         }
     })
     .catch(function(e){console.error(e); btn.disabled = false; btn.innerHTML = 'Agregar'; alert('Error de conexión');});
@@ -534,7 +543,9 @@ function submitCharge(event) {
     spinner.style.display = 'inline';
 
     var fd = new FormData(form);
-    fd.set('csrf_token', CSRF);
+    // Read the CURRENT csrf_token from the hidden input (not the stale JS var)
+    var tokenInput = form.querySelector('input[name="csrf_token"]');
+    fd.set('csrf_token', tokenInput ? tokenInput.value : CSRF);
 
     fetch(form.action, {
         method: 'POST',
@@ -545,6 +556,14 @@ function submitCharge(event) {
         return r.json().then(function(data) { return {status: r.status, data: data}; });
     })
     .then(function(res) {
+        // CSRF expired → show message inside modal with reload link
+        if (res.status === 400 && res.data.error === 'csrf_expired') {
+            btn.disabled = false;
+            btnText.textContent = 'Confirmar pago';
+            spinner.style.display = 'none';
+            _showChargeError(form, res.data.message);
+            return;
+        }
         if (res.data.ok) {
             // Close charge modal
             document.getElementById('chargeModal').classList.remove('open');
@@ -565,17 +584,19 @@ function submitCharge(event) {
         btnText.textContent = 'Confirmar pago';
         spinner.style.display = 'none';
 
-        // Show error inside modal
-        var existingErr = document.getElementById('chargeError');
-        if (existingErr) existingErr.remove();
-
-        var errDiv = document.createElement('div');
-        errDiv.id = 'chargeError';
-        errDiv.className = 'callout callout-danger';
-        errDiv.style.marginBottom = '1rem';
-        errDiv.textContent = err.message || 'Error al procesar el cobro. Intenta de nuevo.';
-        form.insertBefore(errDiv, form.firstChild);
+        _showChargeError(form, err.message || 'Error al procesar el cobro. Intenta de nuevo.');
     });
+}
+
+function _showChargeError(form, message) {
+    var existingErr = document.getElementById('chargeError');
+    if (existingErr) existingErr.remove();
+    var errDiv = document.createElement('div');
+    errDiv.id = 'chargeError';
+    errDiv.className = 'callout callout-danger';
+    errDiv.style.marginBottom = '1rem';
+    errDiv.textContent = message;
+    form.insertBefore(errDiv, form.firstChild);
 }
 
 document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('chargeModal').classList.remove('open')});
