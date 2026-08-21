@@ -480,6 +480,127 @@ def run_tests():
              m is None and t is None and err is not None, f"{err}")
 
     # ══════════════════════════════════════════════
+    #  13. CSRF — cobro con token válido y expirado
+    # ══════════════════════════════════════════════
+    print("\n── CSRF (cobro AJAX) ──")
+
+    import re as _re
+
+    # Crear una app CON CSRF habilitado para estas pruebas
+    csrf_app = create_app()
+    csrf_app.config['WTF_CSRF_ENABLED'] = True
+    csrf_app.config['WTF_CSRF_TIME_LIMIT'] = 28800  # 8 horas
+    csrf_client = csrf_app.test_client()
+
+    with csrf_app.app_context():
+        csrf_db_mesa = Mesa.query.filter_by(nombre='Mesa 3').first()
+        if not csrf_db_mesa:
+            csrf_db_mesa = Mesa(nombre='Mesa 3')
+            db.session.add(csrf_db_mesa)
+            db.session.commit()
+        csrf_mesa_id = csrf_db_mesa.id
+        csrf_prod = Producto.query.filter_by(nombre='Café Americano').first()
+        csrf_prod_id = csrf_prod.id
+
+    def _extract_csrf(html):
+        """Extract CSRF token from a hidden input in the HTML."""
+        m = _re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
+        return m.group(1) if m else None
+
+    def _get_csrf_from_page(path):
+        """GET a page and return the CSRF token found in its forms."""
+        resp = csrf_client.get(path)
+        return _extract_csrf(resp.data.decode())
+
+    def csrf_login(email):
+        csrf_client.get('/auth/logout', follow_redirects=False)
+        token = _get_csrf_from_page('/auth/login')
+        return csrf_client.post('/auth/login', data={
+            'email': email, 'password': 'test123',
+            'csrf_token': token or '',
+        }, follow_redirects=False)
+
+    csrf_login('admin@test.com')
+
+    # --- Setup: abrir mesa, agregar producto (cada POST necesita CSRF) ---
+    token = _get_csrf_from_page(f'/pos/{csrf_mesa_id}')
+    csrf_client.post(f'/pos/{csrf_mesa_id}/open',
+                     data={'csrf_token': token},
+                     follow_redirects=False)
+    token = _get_csrf_from_page(f'/pos/{csrf_mesa_id}')
+    csrf_client.post(f'/pos/{csrf_mesa_id}/add',
+                     data={'producto_id': csrf_prod_id, 'cantidad': 1,
+                           'csrf_token': token},
+                     follow_redirects=False)
+
+    # Obtener la página de la mesa para extraer el CSRF token válido del cobro
+    resp = csrf_client.get(f'/pos/{csrf_mesa_id}')
+    html = resp.data.decode()
+    valid_token = _extract_csrf(html)
+    test("CSRF: token extraído del template", valid_token is not None)
+
+    # --- Cobro con token VÁLIDO → 200 OK ---
+    resp = csrf_client.post(f'/pos/{csrf_mesa_id}/charge',
+        data={
+            'moneda_pago': 'COP',
+            'metodo_pago': 'efectivo',
+            'csrf_token': valid_token,
+        },
+        headers={'X-Requested-With': 'XMLHttpRequest'})
+    data = resp.get_json()
+    test("CSRF: cobro con token válido → ok",
+         resp.status_code == 200 and data.get('ok') is True,
+         f"status={resp.status_code}, ok={data.get('ok')}")
+
+    # --- Cobro con token INVÁLIDO/expirado → 400 ---
+    token = _get_csrf_from_page(f'/pos/{csrf_mesa_id}')
+    csrf_client.post(f'/pos/{csrf_mesa_id}/open',
+                     data={'csrf_token': token},
+                     follow_redirects=False)
+    token = _get_csrf_from_page(f'/pos/{csrf_mesa_id}')
+    csrf_client.post(f'/pos/{csrf_mesa_id}/add',
+                     data={'producto_id': csrf_prod_id, 'cantidad': 1,
+                           'csrf_token': token},
+                     follow_redirects=False)
+
+    resp = csrf_client.post(f'/pos/{csrf_mesa_id}/charge',
+        data={
+            'moneda_pago': 'COP',
+            'metodo_pago': 'efectivo',
+            'csrf_token': 'token-expirado-o-invalido-xyz',
+        },
+        headers={'X-Requested-With': 'XMLHttpRequest'})
+    data = resp.get_json()
+    test("CSRF: cobro con token inválido → 400 + csrf_expired",
+         resp.status_code == 400 and data.get('error') == 'csrf_expired',
+         f"status={resp.status_code}, error={data.get('error')}")
+    test("CSRF: mensaje descriptivo para el usuario",
+         'expiró' in data.get('message', '').lower(),
+         f"msg={data.get('message')}")
+
+    # --- Cobro SIN token → 400 ---
+    token = _get_csrf_from_page(f'/pos/{csrf_mesa_id}')
+    csrf_client.post(f'/pos/{csrf_mesa_id}/open',
+                     data={'csrf_token': token},
+                     follow_redirects=False)
+    token = _get_csrf_from_page(f'/pos/{csrf_mesa_id}')
+    csrf_client.post(f'/pos/{csrf_mesa_id}/add',
+                     data={'producto_id': csrf_prod_id, 'cantidad': 1,
+                           'csrf_token': token},
+                     follow_redirects=False)
+
+    resp = csrf_client.post(f'/pos/{csrf_mesa_id}/charge',
+        data={
+            'moneda_pago': 'COP',
+            'metodo_pago': 'efectivo',
+            # sin csrf_token
+        },
+        headers={'X-Requested-With': 'XMLHttpRequest'})
+    test("CSRF: cobro sin token → 400",
+         resp.status_code == 400,
+         f"status={resp.status_code}")
+
+    # ══════════════════════════════════════════════
     #  SUMMARY
     # ══════════════════════════════════════════════
     passed = sum(1 for s, _, _ in test_results if s == PASS)

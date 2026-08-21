@@ -2,7 +2,7 @@ import os
 import logging
 from datetime import timedelta
 import click
-from flask import Flask, redirect, url_for, flash
+from flask import Flask, jsonify, redirect, url_for, flash
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -31,13 +31,18 @@ def create_app():
     # x_proto=1 confía en el primer X-Forwarded-Proto (http→https)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+    if not app.config['SECRET_KEY']:
+        raise RuntimeError(
+            "SECRET_KEY no está configurado. "
+            "En Fly.io ejecuta: fly secrets set SECRET_KEY=<clave-larga-aleatoria>"
+        )
     db_url = os.environ.get('DATABASE_URL')
     if db_url and db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url or 'sqlite:///caroai.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hora
+    app.config['WTF_CSRF_TIME_LIMIT'] = 28800  # 8 horas (turno diario completo)
 
     # ── Cookie segura para sesión (solo en producción HTTPS) ──
     if not app.debug:
@@ -60,7 +65,15 @@ def create_app():
     @app.errorhandler(CSRFError)
     def handle_csrf_error(e):
         app.logger.warning(f'CSRF error: {e}')
-        flash('La sesión expiró o el token de seguridad no es válido. Por favor, intenta de nuevo.', 'warning')
+        # Para peticiones AJAX (POS, etc.) devolver JSON
+        from flask import request as req
+        if req.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({
+                'ok': False,
+                'error': 'csrf_expired',
+                'message': 'La sesión expiró. Recarga la página e intenta nuevamente.',
+            }), 400
+        flash('La sesión expiró o el token de seguridad no es válido. Por favor, recarga la página e intenta de nuevo.', 'warning')
         return redirect(url_for('pos.index'))
 
     # ── Error handler 500 con logging ──
