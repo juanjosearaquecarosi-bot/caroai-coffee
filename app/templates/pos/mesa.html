@@ -208,7 +208,7 @@
                 <div class="pill-group">
                     <button type="button" class="pill pill-active" data-currency="COP" onclick="selectCurrency(this)">🇨🇴 COP</button>
                     <button type="button" class="pill" data-currency="USD" data-rate="{{ tasa_usd }}" onclick="selectCurrency(this)">🇺🇸 USD</button>
-                    <button type="button" class="pill" data-currency="BS" data-rate="{{ tasa_bs }}" onclick="selectCurrency(this)">🇻🇪 Bs</button>
+                    <button type="button" class="pill" data-currency="VES" data-rate="{{ tasa_bs }}" onclick="selectCurrency(this)">🇻🇪 Bs</button>
                 </div>
                 <input type="hidden" name="moneda_pago" id="monedaPago" value="COP">
             </div>
@@ -474,7 +474,7 @@ function updateConverted(currency, rate) {
     }
 
     var converted = TOTAL_COP / rate;
-    var sym = currency === 'USD' ? '$' : (currency === 'BS' ? 'Bs ' : '$');
+    var sym = currency === 'USD' ? '$' : (currency === 'VES' ? 'Bs ' : '$');
     var formatted = converted < 1 ? converted.toFixed(4) : converted.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     label.textContent = 'Total en ' + currency;
     amount.textContent = sym + formatted;
