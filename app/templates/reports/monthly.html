@@ -291,4 +291,49 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Desglose por mesa y día -->
+{% if mesas_detalle %}
+<div class="card mb-3">
+    <div class="card-header">
+        <h3>Desglose por mesa y día</h3>
+    </div>
+    <div class="card-body">
+        {% for mesa_nombre, dias in mesas_detalle.items()|sort %}
+        <div style="margin-bottom: 1.75rem;">
+            <h4 style="font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                {% if 'Barra' in mesa_nombre %}🍺{% else %}🪑{% endif %} {{ mesa_nombre }}
+                {% set mesa_total = dias.values()|map(attribute='total')|sum %}
+                <span class="text-muted text-small" style="font-weight:400;">— ${{ "{:,}".format(mesa_total) }} total</span>
+            </h4>
+            <table style="width:100%; border-collapse: collapse; font-size: 0.875rem;">
+                <thead>
+                    <tr style="border-bottom: 2px solid var(--color-border);">
+                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Día</th>
+                        <th style="text-align:right; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Total COP</th>
+                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Productos vendidos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dia, data in dias.items()|sort %}
+                    <tr style="border-bottom: 1px solid var(--color-border-light);">
+                        <td style="padding: 0.5rem 0.75rem; font-weight: 600;">{{ dia }}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700;">${{ "{:,}".format(data.total) }}</td>
+                        <td style="padding: 0.5rem 0.75rem;">
+                            {% for prod_nombre, prod_data in data.productos.items() %}
+                            <span style="display:inline-block; margin-right: 1rem; margin-bottom: 0.25rem;">
+                                {{ prod_nombre }} <span style="color: var(--color-text-muted);">×{{ prod_data.cantidad }}</span>
+                                <span style="font-family: var(--font-display); font-weight: 600;">${{ "{:,}".format(prod_data.subtotal) }}</span>
+                            </span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}

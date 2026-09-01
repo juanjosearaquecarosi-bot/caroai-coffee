@@ -1,3 +1,4 @@
+from collections import defaultdict
 from flask import Blueprint, render_template, request
 from flask_login import login_required
 from ..models import db, Pedido, Mesa, Gasto
@@ -129,6 +130,30 @@ def monthly():
             item.subtotal_cop for item in pedido.items
         )
 
+    # ── Desglose por mesa y día ──
+    # Estructura: {mesa_nombre: {dia_str: {total: int, productos: {nombre: {cantidad, subtotal}}}}}
+    mesas_detalle = defaultdict(lambda: defaultdict(lambda: {'total': 0, 'productos': defaultdict(lambda: {'cantidad': 0, 'subtotal': 0})}))
+    for pedido in pedidos_mes:
+        mesa_nombre = pedido.mesa.nombre if pedido.mesa else 'Sin mesa'
+        dia = pedido.pagado_en.strftime('%d/%m') if pedido.pagado_en else pedido.fecha_hora.strftime('%d/%m')
+        for item in pedido.items:
+            nombre = item.nota if item.nota else (item.producto.nombre if item.producto else 'Cargo manual')
+            mesas_detalle[mesa_nombre][dia]['total'] += item.subtotal_cop
+            mesas_detalle[mesa_nombre][dia]['productos'][nombre]['cantidad'] += item.cantidad
+            mesas_detalle[mesa_nombre][dia]['productos'][nombre]['subtotal'] += item.subtotal_cop
+
+    # Convert defaultdicts to plain dicts for Jinja2 template rendering
+    mesas_detalle = {
+        mesa: {
+            dia: {
+                'total': data['total'],
+                'productos': dict(data['productos'])
+            }
+            for dia, data in dias.items()
+        }
+        for mesa, dias in mesas_detalle.items()
+    }
+
     # ── Top productos ──
     productos_vendidos = {}
     for pedido in pedidos_mes:
@@ -229,6 +254,7 @@ def monthly():
         gastos_cop=gastos_cop,
         balance_cop=balance_cop,
         balance_unificado=balance_unificado,
+        mesas_detalle=mesas_detalle,
     )
 
 
