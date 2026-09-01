@@ -1,12 +1,24 @@
 from collections import defaultdict
 from flask import Blueprint, render_template, request
 from flask_login import login_required
-from ..models import db, Pedido, Mesa, Gasto
+from ..models import db, Pedido, Mesa, Gasto, TasaCambio
 from ..utils.decorators import role_required
 from ..utils.currency import obtener_tasas_cop, get_tasa_activa
 from datetime import datetime, date
 
 reports_bp = Blueprint('reports', __name__)
+
+
+def _obtener_tasa_ves_cop():
+    """Get VES→COP rate, trying typed (venta/compra) first, then direct, then inverse."""
+    for tipo in ('ves_venta', 'ves_compra', None):
+        t = get_tasa_activa('VES', 'COP', tipo=tipo) if tipo else get_tasa_activa('VES', 'COP')
+        if t:
+            return t.tasa
+    t = get_tasa_activa('COP', 'VES')
+    if t and t.tasa > 0:
+        return round(1 / t.tasa, 2)
+    return None
 
 
 @reports_bp.route('/')
@@ -110,7 +122,7 @@ def monthly():
     total_vendido_cop = sum(item.subtotal_cop for pedido in pedidos_mes for item in pedido.items)
     total_pedidos_mes = len(pedidos_mes)
 
-    # ── Ingresos por moneda ──
+    # ── Ingresos por moneda (montos reales en cada moneda) ──
     monedas_resumen = {}
     for pedido in pedidos_mes:
         moneda = pedido.moneda_pago or '—'
@@ -119,27 +131,31 @@ def monthly():
                 'monto_total': 0,
                 'cantidad_pedidos': 0,
             }
-        monedas_resumen[moneda]['monto_total'] += pedido.total
+        monedas_resumen[moneda]['monto_total'] += _monto_en_moneda(pedido)
         monedas_resumen[moneda]['cantidad_pedidos'] += 1
 
-    # ── Ventas por día ──
+    # ── Ventas por día (montos reales por moneda) ──
     ventas_por_dia = {}
     for pedido in pedidos_mes:
         dia = pedido.pagado_en.strftime('%d/%m') if pedido.pagado_en else pedido.fecha_hora.strftime('%d/%m')
-        ventas_por_dia[dia] = ventas_por_dia.get(dia, 0) + sum(
-            item.subtotal_cop for item in pedido.items
-        )
+        ventas_por_dia[dia] = ventas_por_dia.get(dia, 0) + _monto_en_moneda(pedido)
 
     # ── Desglose diario: facturas individuales por día ──
+    tasa_ves_cop = _obtener_tasa_ves_cop()
+
     facturas_por_dia = defaultdict(list)
     for pedido in pedidos_mes:
         dia = pedido.pagado_en.day if pedido.pagado_en else pedido.fecha_hora.day
+        moneda = (pedido.moneda_pago or 'COP').upper()
+        monto_real = _monto_en_moneda(pedido)
+        cop_ref = round(monto_real * tasa_ves_cop, 2) if moneda == 'VES' and tasa_ves_cop else None
         facturas_por_dia[dia].append({
             'pedido_id': pedido.id,
             'mesa': pedido.mesa.nombre if pedido.mesa else '—',
             'hora': pedido.pagado_en.strftime('%H:%M') if pedido.pagado_en else '—',
-            'moneda': pedido.moneda_pago or '—',
-            'total': pedido.total,
+            'moneda': moneda,
+            'total': monto_real,
+            'cop_ref': cop_ref,
             'line_items': [
                 {
                     'producto': item.nota or (item.producto.nombre if item.producto else 'Cargo manual'),
@@ -252,6 +268,7 @@ def monthly():
         balance_cop=balance_cop,
         balance_unificado=balance_unificado,
         facturas_por_dia=facturas_por_dia,
+        tasa_ves_cop=tasa_ves_cop,
     )
 
 
@@ -269,12 +286,13 @@ NOMBRES_MES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
 
 def _monto_en_moneda(pedido):
     """Monto cobrado en la moneda del pedido, tal como se guardó en el cobro.
-    Prioriza total_pagado_moneda; si falta (datos viejos), deriva de total/tasa_aplicada."""
+    Prioriza total_pagado_moneda; si falta (datos viejos), deriva de total/tasa_aplicada.
+    Para COP o datos sin info de moneda, retorna pedido.total (que ya está en COP)."""
     if pedido.total_pagado_moneda:
         return pedido.total_pagado_moneda
     if pedido.tasa_aplicada and pedido.tasa_aplicada > 0:
         return round(pedido.total / pedido.tasa_aplicada, 2)
-    return 0.0
+    return float(pedido.total)
 
 
 def _resumen_mes(mes, anio):
@@ -443,6 +461,9 @@ def annual_summary():
         Pedido.estado == 'pagado',
     ).all()
 
+    # ── VES→COP rate for reference display ──
+    tasa_ves_cop = _obtener_tasa_ves_cop()
+
     # ── Cálculo por mes ──
     filas = []
     for mes_num in range(1, 13):
@@ -458,10 +479,11 @@ def annual_summary():
 
             # Moneda (vacío o None se trata como COP por defecto)
             moneda = (pedido.moneda_pago or 'COP').upper()
+            monto = _monto_en_moneda(pedido)
             if moneda == 'VES':
-                bs += pedido.total
+                bs += monto
             elif moneda == 'USD':
-                usd += pedido.total
+                usd += monto
             else:
                 cop += pedido.total
 
@@ -486,6 +508,7 @@ def annual_summary():
             'tazas': tazas,
             'kilos': round(kilos, 3) if kilos else 0,
             'bs': bs,
+            'bs_cop_ref': round(bs * tasa_ves_cop, 2) if tasa_ves_cop else None,
             'cop': cop,
             'usd': round(usd, 2) if usd else 0,
         })
@@ -494,6 +517,7 @@ def annual_summary():
     total_tazas = sum(f['tazas'] for f in filas)
     total_kilos = round(sum(f['kilos'] for f in filas), 3)
     total_bs = sum(f['bs'] for f in filas)
+    total_bs_cop_ref = round(total_bs * tasa_ves_cop, 2) if tasa_ves_cop else None
     total_cop = sum(f['cop'] for f in filas)
     total_usd = round(sum(f['usd'] for f in filas), 2)
 
@@ -517,10 +541,12 @@ def annual_summary():
         total_tazas=total_tazas,
         total_kilos=total_kilos,
         total_bs=total_bs,
+        total_bs_cop_ref=total_bs_cop_ref,
         total_cop=total_cop,
         total_usd=total_usd,
         analisis_map=analisis_map,
         anios=anios,
+        tasa_ves_cop=tasa_ves_cop,
     )
 
 

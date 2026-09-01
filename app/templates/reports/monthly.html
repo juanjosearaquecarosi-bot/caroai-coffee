@@ -99,7 +99,11 @@
                 <div class="info-row">
                     <span class="info-label" style="font-size: 0.9375rem;"><strong>{{ moneda }}</strong></span>
                     <span>
-                        <span class="info-value" style="font-family: var(--font-display); font-size: 1.125rem;">${{ "{:,}".format(data.monto_total) }}</span>
+                        <span class="info-value" style="font-family: var(--font-display); font-size: 1.125rem;">
+                            {% if moneda == 'USD' %}US${{ "{:,.2f}".format(data.monto_total) }}
+                            {% elif moneda == 'VES' %}Bs {{ "{:,.2f}".format(data.monto_total) }}{% if tasa_ves_cop %} <span style="font-size: 0.75rem; font-weight: 400; color: var(--color-text-muted);">(≈ ${{ "{:,}".format((data.monto_total * tasa_ves_cop)|int) }} COP)</span>{% endif %}
+                            {% else %}${{ "{:,}".format(data.monto_total|int) }}{% endif %}
+                        </span>
                         <span class="text-muted text-small" style="display: block; text-align: right;">{{ data.cantidad_pedidos }} pedido{% if data.cantidad_pedidos != 1 %}s{% endif %}</span>
                     </span>
                 </div>
@@ -109,6 +113,11 @@
             {% else %}
             <div class="empty-state" style="padding: 1.5rem 0;">
                 <p class="text-muted">Sin ingresos este mes.</p>
+            </div>
+            {% endif %}
+            {% if 'VES' in monedas_resumen and not tasa_ves_cop %}
+            <div class="callout callout-warning" style="margin-top: 0.75rem; padding: 0.5rem 0.75rem; font-size: 0.8125rem;">
+                ⚠️ Sin tasa de cambio configurada para VES→COP. Los montos en Bs se muestran sin referencia en COP.
             </div>
             {% endif %}
         </div>
@@ -339,13 +348,17 @@
                         <td style="padding: 0.5rem 0.75rem;">
                             <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-secondary);">{{ fac.moneda }}</span>
                         </td>
-                        <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700;">${{ "{:,}".format(fac.total) }}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700;">
+                            {% if fac.moneda == 'USD' %}US${{ "{:,.2f}".format(fac.total) }}
+                            {% elif fac.moneda == 'VES' %}Bs {{ "{:,.2f}".format(fac.total) }}{% if fac.cop_ref %} <span style="font-size: 0.75rem; font-weight: 400; color: var(--color-text-muted);">(≈ ${{ "{:,}".format(fac.cop_ref|int) }} COP)</span>{% endif %}
+                            {% else %}${{ "{:,}".format(fac.total|int) }}{% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
             <div style="text-align: right; padding: 0.5rem 0.75rem; font-size: 0.875rem; font-weight: 700; color: var(--color-text-secondary); border-top: 1px solid var(--color-border-light);">
-                Total día: <span style="font-family: var(--font-display); font-size: 1rem; color: var(--color-text-primary);">${{ "{:,}".format(dia_total) }}</span>
+                Total día: <span style="font-family: var(--font-display); font-size: 1rem; color: var(--color-text-primary);">${{ "{:,}".format(dia_total|int) }}</span>
             </div>
         </div>
         {% endfor %}
