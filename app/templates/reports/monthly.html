@@ -292,47 +292,67 @@
 </div>
 {% endif %}
 
-<!-- Desglose por mesa y día -->
-{% if mesas_detalle %}
+<!-- Facturas por día (desglose diario) -->
+{% if facturas_por_dia %}
 <div class="card mb-3">
     <div class="card-header">
-        <h3>Desglose por mesa y día</h3>
+        <h3>Facturas por día</h3>
     </div>
     <div class="card-body">
-        {% for mesa_nombre, dias in mesas_detalle.items()|sort %}
-        <div style="margin-bottom: 1.75rem;">
-            <h4 style="font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-                {% if 'Barra' in mesa_nombre %}🍺{% else %}🪑{% endif %} {{ mesa_nombre }}
-                {% set mesa_total = dias.values()|map(attribute='total')|sum %}
-                <span class="text-muted text-small" style="font-weight:400;">— ${{ "{:,}".format(mesa_total) }} total</span>
+        {% for dia_num, facturas in facturas_por_dia.items() %}
+        <div style="margin-bottom: 2rem;">
+            <h4 style="font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--color-border-light);">
+                📅 Día {{ '%02d' % dia_num }}/{{ '%02d' % selected_mes }}
+                {% set dia_total = facturas|map(attribute='total')|sum %}
+                <span class="text-muted text-small" style="font-weight:400;">— {{ facturas|length }} factura{% if facturas|length != 1 %}s{% endif %} · ${{ "{:,}".format(dia_total) }}</span>
             </h4>
             <table style="width:100%; border-collapse: collapse; font-size: 0.875rem;">
                 <thead>
                     <tr style="border-bottom: 2px solid var(--color-border);">
-                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Día</th>
-                        <th style="text-align:right; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Total COP</th>
-                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Productos vendidos</th>
+                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);"># Pedido</th>
+                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Mesa</th>
+                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Hora</th>
+                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Productos</th>
+                        <th style="text-align:left; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Moneda</th>
+                        <th style="text-align:right; padding: 0.5rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Total</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for dia, data in dias.items()|sort %}
+                    {% for fac in facturas %}
                     <tr style="border-bottom: 1px solid var(--color-border-light);">
-                        <td style="padding: 0.5rem 0.75rem; font-weight: 600;">{{ dia }}</td>
-                        <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700;">${{ "{:,}".format(data.total) }}</td>
                         <td style="padding: 0.5rem 0.75rem;">
-                            {% for prod_nombre, prod_data in data.productos.items() %}
-                            <span style="display:inline-block; margin-right: 1rem; margin-bottom: 0.25rem;">
-                                {{ prod_nombre }} <span style="color: var(--color-text-muted);">×{{ prod_data.cantidad }}</span>
-                                <span style="font-family: var(--font-display); font-weight: 600;">${{ "{:,}".format(prod_data.subtotal) }}</span>
+                            <a href="{{ url_for('pos.detail', pedido_id=fac.pedido_id) }}" style="color: var(--color-accent); text-decoration: none; font-weight: 700;">#{{ fac.pedido_id }}</a>
+                        </td>
+                        <td style="padding: 0.5rem 0.75rem;">{{ fac.mesa }}</td>
+                        <td style="padding: 0.5rem 0.75rem; color: var(--color-text-muted);">{{ fac.hora }}</td>
+                        <td style="padding: 0.5rem 0.75rem;">
+                            {% for item in fac.line_items %}
+                            <span style="display:inline-block; margin-right: 0.75rem; margin-bottom: 0.125rem;">
+                                {{ item.producto }} <span style="color: var(--color-text-muted);">×{{ item.cantidad }}</span>
                             </span>
                             {% endfor %}
                         </td>
+                        <td style="padding: 0.5rem 0.75rem;">
+                            <span style="font-size: 0.8125rem; font-weight: 600; color: var(--color-text-secondary);">{{ fac.moneda }}</span>
+                        </td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700;">${{ "{:,}".format(fac.total) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            <div style="text-align: right; padding: 0.5rem 0.75rem; font-size: 0.875rem; font-weight: 700; color: var(--color-text-secondary); border-top: 1px solid var(--color-border-light);">
+                Total día: <span style="font-family: var(--font-display); font-size: 1rem; color: var(--color-text-primary);">${{ "{:,}".format(dia_total) }}</span>
+            </div>
         </div>
         {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="empty-state" style="padding: 2rem 0;">
+            <p class="text-muted">Sin facturas este mes.</p>
+        </div>
     </div>
 </div>
 {% endif %}

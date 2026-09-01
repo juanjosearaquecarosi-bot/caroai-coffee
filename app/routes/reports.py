@@ -130,29 +130,26 @@ def monthly():
             item.subtotal_cop for item in pedido.items
         )
 
-    # ── Desglose por mesa y día ──
-    # Estructura: {mesa_nombre: {dia_str: {total: int, productos: {nombre: {cantidad, subtotal}}}}}
-    mesas_detalle = defaultdict(lambda: defaultdict(lambda: {'total': 0, 'productos': defaultdict(lambda: {'cantidad': 0, 'subtotal': 0})}))
+    # ── Desglose diario: facturas individuales por día ──
+    facturas_por_dia = defaultdict(list)
     for pedido in pedidos_mes:
-        mesa_nombre = pedido.mesa.nombre if pedido.mesa else 'Sin mesa'
-        dia = pedido.pagado_en.strftime('%d/%m') if pedido.pagado_en else pedido.fecha_hora.strftime('%d/%m')
-        for item in pedido.items:
-            nombre = item.nota if item.nota else (item.producto.nombre if item.producto else 'Cargo manual')
-            mesas_detalle[mesa_nombre][dia]['total'] += item.subtotal_cop
-            mesas_detalle[mesa_nombre][dia]['productos'][nombre]['cantidad'] += item.cantidad
-            mesas_detalle[mesa_nombre][dia]['productos'][nombre]['subtotal'] += item.subtotal_cop
-
-    # Convert defaultdicts to plain dicts for Jinja2 template rendering
-    mesas_detalle = {
-        mesa: {
-            dia: {
-                'total': data['total'],
-                'productos': dict(data['productos'])
-            }
-            for dia, data in dias.items()
-        }
-        for mesa, dias in mesas_detalle.items()
-    }
+        dia = pedido.pagado_en.day if pedido.pagado_en else pedido.fecha_hora.day
+        facturas_por_dia[dia].append({
+            'pedido_id': pedido.id,
+            'mesa': pedido.mesa.nombre if pedido.mesa else '—',
+            'hora': pedido.pagado_en.strftime('%H:%M') if pedido.pagado_en else '—',
+            'moneda': pedido.moneda_pago or '—',
+            'total': pedido.total,
+            'line_items': [
+                {
+                    'producto': item.nota or (item.producto.nombre if item.producto else 'Cargo manual'),
+                    'cantidad': item.cantidad,
+                    'subtotal_cop': item.subtotal_cop,
+                }
+                for item in pedido.items
+            ],
+        })
+    facturas_por_dia = dict(sorted(facturas_por_dia.items()))
 
     # ── Top productos ──
     productos_vendidos = {}
@@ -254,7 +251,7 @@ def monthly():
         gastos_cop=gastos_cop,
         balance_cop=balance_cop,
         balance_unificado=balance_unificado,
-        mesas_detalle=mesas_detalle,
+        facturas_por_dia=facturas_por_dia,
     )
 
 
