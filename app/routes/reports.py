@@ -398,3 +398,153 @@ def compare():
         mes_b=mes_b, anio_b=anio_b,
         anios=anios,
     )
+
+
+# ──────────────────────────────────────────────
+#  RESUMEN ANUAL
+#  Tabla comparativa mes a mes dentro de un año:
+#  Tazas, Kilos, Bs, COP, US$, Análisis mes.
+# ──────────────────────────────────────────────
+MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+PALABRAS_CAFE = {'café', 'cafe', 'capuchino', 'espresso', 'expreso',
+                 'latte', 'moka', 'macchiato', 'cortado', 'macchiato'}
+
+# Kilos: productos con 'kilo' en el nombre.  Multiplicador por nombre.
+# Orden importa: patrones más específicos primero para evitar match parcial.
+KILO_FACTORS = [
+    ('½ kilo', 0.5), ('1/2 kilo', 0.5), ('medio kilo', 0.5),
+    ('¼ kilo', 0.25), ('1/4 kilo', 0.25), ('cuarto kilo', 0.25),
+    ('kilo', 1.0),  # genérico al final
+]
+
+
+@reports_bp.route('/annual')
+@login_required
+@role_required('admin')
+def annual_summary():
+    """Resumen anual: tabla de 12 meses con tazas, kilos, Bs, COP, US$."""
+    from ..models import AnalisisMensual
+
+    today = date.today()
+    selected_anio = request.args.get('anio', type=int, default=today.year)
+    if selected_anio < 2000 or selected_anio > 2100:
+        selected_anio = today.year
+
+    year_start = date(selected_anio, 1, 1)
+    year_end = date(selected_anio + 1, 1, 1)
+    year_start_dt = datetime(selected_anio, 1, 1, 0, 0, 0)
+    year_end_dt = datetime(selected_anio + 1, 1, 1, 0, 0, 0)
+
+    pedidos_anio = Pedido.query.filter(
+        Pedido.pagado_en >= year_start_dt,
+        Pedido.pagado_en < year_end_dt,
+        Pedido.estado == 'pagado',
+    ).all()
+
+    # ── Cálculo por mes ──
+    filas = []
+    for mes_num in range(1, 13):
+        tazas = 0
+        kilos = 0.0
+        bs = 0
+        cop = 0
+        usd = 0.0
+
+        for pedido in pedidos_anio:
+            if not pedido.pagado_en or pedido.pagado_en.month != mes_num:
+                continue
+
+            # Moneda (vacío o None se trata como COP por defecto)
+            moneda = (pedido.moneda_pago or 'COP').upper()
+            if moneda == 'VES':
+                bs += pedido.total
+            elif moneda == 'USD':
+                usd += pedido.total
+            else:
+                cop += pedido.total
+
+            for item in pedido.items:
+                if not item.producto:
+                    continue
+                nombre_lower = item.producto.nombre.lower()
+
+                # Tazas de café
+                if any(p in nombre_lower for p in PALABRAS_CAFE):
+                    tazas += item.cantidad
+
+                # Kilos de café en grano
+                for keyword, factor in KILO_FACTORS:
+                    if keyword in nombre_lower:
+                        kilos += item.cantidad * factor
+                        break
+
+        filas.append({
+            'mes': mes_num,
+            'mes_nombre': MESES_CORTOS[mes_num - 1],
+            'tazas': tazas,
+            'kilos': round(kilos, 3) if kilos else 0,
+            'bs': bs,
+            'cop': cop,
+            'usd': round(usd, 2) if usd else 0,
+        })
+
+    # ── Fila de totales ──
+    total_tazas = sum(f['tazas'] for f in filas)
+    total_kilos = round(sum(f['kilos'] for f in filas), 3)
+    total_bs = sum(f['bs'] for f in filas)
+    total_cop = sum(f['cop'] for f in filas)
+    total_usd = round(sum(f['usd'] for f in filas), 2)
+
+    # ── Análisis mensual (notas persistentes) ──
+    analisis_map = {}
+    notas = AnalisisMensual.query.filter_by(anio=selected_anio).all()
+    for nota in notas:
+        analisis_map[nota.mes] = nota.texto or ''
+
+    # Años disponibles (con datos o actuales)
+    anios_con_datos = set()
+    for (fecha,) in Pedido.query.filter_by(estado='pagado').with_entities(Pedido.pagado_en).all():
+        if fecha is not None:
+            anios_con_datos.add(fecha.year)
+    anios = sorted(anios_con_datos | {today.year}, reverse=True)
+
+    return render_template(
+        'reports/annual.html',
+        selected_anio=selected_anio,
+        filas=filas,
+        total_tazas=total_tazas,
+        total_kilos=total_kilos,
+        total_bs=total_bs,
+        total_cop=total_cop,
+        total_usd=total_usd,
+        analisis_map=analisis_map,
+        anios=anios,
+    )
+
+
+@reports_bp.route('/annual/save-note', methods=['POST'])
+@login_required
+@role_required('admin')
+def save_annual_note():
+    """Guarda o actualiza el análisis mensual (texto libre)."""
+    from ..models import AnalisisMensual
+    from flask import jsonify
+
+    anio = request.form.get('anio', type=int)
+    mes = request.form.get('mes', type=int)
+    texto = request.form.get('texto', '').strip()
+
+    if not anio or not mes or mes < 1 or mes > 12:
+        return jsonify({'ok': False, 'error': 'Parámetros inválidos'}), 400
+
+    nota = AnalisisMensual.query.filter_by(anio=anio, mes=mes).first()
+    if nota:
+        nota.texto = texto
+    else:
+        nota = AnalisisMensual(anio=anio, mes=mes, texto=texto)
+        db.session.add(nota)
+
+    db.session.commit()
+    return jsonify({'ok': True})

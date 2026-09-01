@@ -290,3 +290,25 @@ class TasaCambio(db.Model):
     def __repr__(self):
         tipo_str = f' [{self.tipo_etiqueta}]' if self.tipo else ''
         return f'<Tasa 1 {self.moneda_origen} = {self.tasa} {self.moneda_destino}{tipo_str}>'
+
+
+# ──────────────────────────────────────────────
+#  ANÁLISIS MENSUAL (notas del resumen anual)
+#  Campo de texto libre para observaciones por mes/año.
+# ──────────────────────────────────────────────
+class AnalisisMensual(db.Model):
+    __tablename__ = 'analisis_mensual'
+
+    id = db.Column(db.Integer, primary_key=True)
+    anio = db.Column(db.Integer, nullable=False)
+    mes = db.Column(db.Integer, nullable=False)  # 1-12
+    texto = db.Column(db.Text, nullable=True)
+    creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    actualizado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('anio', 'mes', name='uq_analisis_anio_mes'),
+    )
+
+    def __repr__(self):
+        return f'<AnalisisMensual {self.anio}-{self.mes:02d}>'

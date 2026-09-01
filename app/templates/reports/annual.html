@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Resumen Anual {{ selected_anio }} · Caroai Café{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Resumen anual</h1>
+        <p>{{ selected_anio }}</p>
+    </div>
+    <div class="page-header-actions">
+        <a href="{{ url_for('reports.monthly', mes=1, anio=selected_anio) }}" class="btn btn-outline">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Mensual
+        </a>
+        <a href="{{ url_for('reports.index') }}" class="btn btn-outline">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Diario
+        </a>
+    </div>
+</div>
+
+<!-- Selector de año -->
+<div class="filter-bar">
+    <form method="GET" action="{{ url_for('reports.annual_summary') }}">
+        <div class="filter-group">
+            <label for="anio">Año</label>
+            <select class="form-select" id="anio" name="anio">
+                {% for a in anios %}
+                <option value="{{ a }}" {% if selected_anio == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-sm btn-primary">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                Ver año
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Tabla resumen anual -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3>Control de ventas — {{ selected_anio }}</h3>
+    </div>
+    <div class="card-body" style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.9375rem; min-width: 700px;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--color-border);">
+                    <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Mes</th>
+                    <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Tazas</th>
+                    <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Kilos</th>
+                    <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Bs</th>
+                    <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">COP</th>
+                    <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">US$</th>
+                    <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--color-text-secondary);">Análisis mes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in filas %}
+                <tr style="border-bottom: 1px solid var(--color-border-light);">
+                    <td style="padding: 0.5rem 0.75rem; font-weight: 600;">{{ fila.mes_nombre }}</td>
+                    <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-variant-numeric: tabular-nums;">{{ fila.tazas if fila.tazas else '—' }}</td>
+                    <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-variant-numeric: tabular-nums;">{{ '%.3f'|format(fila.kilos) if fila.kilos else '—' }}</td>
+                    <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-variant-numeric: tabular-nums;">{{ '{:,.2f}'.format(fila.bs) if fila.bs else '—' }}</td>
+                    <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-variant-numeric: tabular-nums;">{{ '{:,}'.format(fila.cop) if fila.cop else '—' }}</td>
+                    <td style="padding: 0.5rem 0.75rem; text-align: right; font-family: var(--font-display); font-variant-numeric: tabular-nums;">{{ '{:,.2f}'.format(fila.usd) if fila.usd else '—' }}</td>
+                    <td style="padding: 0.375rem 0.75rem;">
+                        <input type="text"
+                               class="analisis-input"
+                               data-anio="{{ selected_anio }}"
+                               data-mes="{{ fila.mes }}"
+                               value="{{ analisis_map.get(fila.mes, '') }}"
+                               placeholder="Nota…"
+                               style="width: 100%; padding: 0.25rem 0.5rem; border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); font-size: 0.8125rem; font-family: var(--font-body); background: var(--color-bg); color: var(--color-text-primary); outline: none; transition: border-color 0.15s;"
+                               onfocus="this.style.borderColor='var(--color-accent)'"
+                               onblur="this.style.borderColor=''; saveNote(this)">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="border-top: 2px solid var(--color-border); background: var(--color-surface-hover);">
+                    <td style="padding: 0.625rem 0.75rem; font-weight: 700; font-size: 1rem;">Total</td>
+                    <td style="padding: 0.625rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700; font-size: 1rem;">{{ total_tazas }}</td>
+                    <td style="padding: 0.625rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700; font-size: 1rem;">{{ '%.3f'|format(total_kilos) }}</td>
+                    <td style="padding: 0.625rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700; font-size: 1rem;">{{ '{:,.2f}'.format(total_bs) }}</td>
+                    <td style="padding: 0.625rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700; font-size: 1rem;">{{ '{:,}'.format(total_cop) }}</td>
+                    <td style="padding: 0.625rem 0.75rem; text-align: right; font-family: var(--font-display); font-weight: 700; font-size: 1rem;">{{ '{:,.2f}'.format(total_usd) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<!-- Leyenda -->
+<div class="callout callout-info mb-3">
+    <strong>Nota sobre los datos</strong>
+    <p>
+        <strong>Tazas:</strong> productos identificados como café (espresso, latte, capuchino, etc.).<br>
+        <strong>Kilos:</strong> café en grano (1 Kilo = 1, ½ Kilo = 0.5, ¼ Kilo = 0.25).<br>
+        <strong>Bs / COP / US$:</strong> suma del total de pedidos pagados en cada moneda.<br>
+        <strong>Análisis mes:</strong> campo de notas libre. Se guarda automáticamente al salir del campo.
+    </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var SAVE_NOTE_URL = '{{ url_for("reports.save_annual_note") }}';
+var CSRF_TOKEN = '{{ csrf_token() }}';
+
+function saveNote(input) {
+    var valor = input.value.trim();
+    var actual = input.getAttribute('data-original') || '';
+    if (valor === actual) return;  // no cambió
+
+    var fd = new FormData();
+    fd.append('anio', input.getAttribute('data-anio'));
+    fd.append('mes', input.getAttribute('data-mes'));
+    fd.append('texto', valor);
+    fd.append('csrf_token', CSRF_TOKEN);
+
+    fetch(SAVE_NOTE_URL, {
+        method: 'POST',
+        body: fd,
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) {
+            input.setAttribute('data-original', valor);
+            input.style.borderColor = 'var(--color-success)';
+            setTimeout(function() { input.style.borderColor = ''; }, 800);
+        }
+    })
+    .catch(function() {
+        input.style.borderColor = 'var(--color-danger)';
+        setTimeout(function() { input.style.borderColor = ''; }, 1500);
+    });
+}
+
+// Store initial values for change detection
+document.querySelectorAll('.analisis-input').forEach(function(input) {
+    input.setAttribute('data-original', input.value);
+});
+</script>
+{% endblock %}
